@@ -1,0 +1,6 @@
+package(default_visibility = ["//visibility:public"])
+
+exports_files([
+    "make_manifest.py",
+    "make_plist.py",
+])

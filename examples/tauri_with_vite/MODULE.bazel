@@ -1,0 +1,8 @@
+module(name = "tauri_with_vite")
+
+local_path_override(
+    module_name = "rules_tauri",
+    path = "../..",
+)
+
+bazel_dep(name = "rules_tauri", version = "0.0.0")

@@ -1,0 +1,72 @@
+package(default_visibility = ["//visibility:public"])
+
+load("//tauri:defs.bzl", "tauri_bundle_inputs", "tauri_macos_app")
+
+filegroup(
+    name = "frontend_dist",
+    srcs = glob(["src/frontend/**"]),
+)
+
+tauri_bundle_inputs(
+    name = "bundle_inputs_arm64",
+    frontend_dist = ":frontend_dist",
+    main_binary = "src/bin/minimal-app",
+    sidecars = ["src/bin/helper-sidecar-aarch64-apple-darwin"],
+    resources = ["src/resources/example.txt"],
+    resource_map = {
+        "src/resources/license.txt": "legal/license.txt",
+    },
+    icons = ["src/icons/AppIcon.icns"],
+    tauri_config = "src/tauri.conf.json",
+    info_plist_fragments = ["src/Info.fragment.plist"],
+    macos_files = {
+        "src/resources/extra.conf": "Helpers/extra.conf",
+    },
+    bundle_id = "dev.rules_tauri.minimal",
+    product_name = "MinimalTauriApp",
+    version = "1.2.3",
+    target_triple = "aarch64-apple-darwin",
+    frameworks = ["src/frameworks/Fake.framework/Fake"],
+)
+
+tauri_macos_app(
+    name = "app_arm64",
+    bundle = ":bundle_inputs_arm64",
+)
+
+tauri_bundle_inputs(
+    name = "bundle_inputs_x86_64",
+    frontend_dist = ":frontend_dist",
+    main_binary = "src/bin/minimal-app",
+    sidecars = ["src/bin/helper-sidecar-x86_64-apple-darwin"],
+    resources = ["src/resources/example.txt"],
+    resource_map = {
+        "src/resources/license.txt": "legal/license.txt",
+    },
+    icons = ["src/icons/AppIcon.icns"],
+    tauri_config = "src/tauri.conf.json",
+    info_plist_fragments = ["src/Info.fragment.plist"],
+    macos_files = {
+        "src/resources/extra.conf": "Helpers/extra.conf",
+    },
+    bundle_id = "dev.rules_tauri.minimal",
+    product_name = "MinimalTauriApp",
+    version = "1.2.3",
+    target_triple = "x86_64-apple-darwin",
+    frameworks = ["src/frameworks/Fake.framework/Fake"],
+)
+
+tauri_macos_app(
+    name = "app_x86_64",
+    bundle = ":bundle_inputs_x86_64",
+)
+
+alias(
+    name = "bundle_inputs",
+    actual = ":bundle_inputs_arm64",
+)
+
+alias(
+    name = "app",
+    actual = ":app_arm64",
+)

@@ -1,0 +1,9 @@
+package(default_visibility = ["//visibility:private"])
+
+exports_files([
+    "bundle_inputs.bzl",
+    "macos_app.bzl",
+    "manifest.bzl",
+    "paths.bzl",
+    "plist.bzl",
+])

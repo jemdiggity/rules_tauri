@@ -1,0 +1,4 @@
+package(default_visibility = ["//visibility:public"])
+
+# Placeholder example workspace. This example is intended to show how a caller
+# can provide `frontend_dist` built elsewhere and feed it into `rules_tauri`.
