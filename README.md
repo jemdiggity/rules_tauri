@@ -8,6 +8,8 @@ Release-focused Bazel rules for Tauri applications.
 - assemble a deterministic unsigned macOS `.app` bundle for one target triple,
 - stop at the `.app` boundary.
 
+For normal release apps, `frontend_dist` is treated as an input to upstream-style Tauri asset embedding, not as loose frontend files to copy into the final app bundle.
+
 Everything after `.app` creation, including code signing, DMG creation, notarization, stapling, and release upload, is out of scope.
 
 ## Status
@@ -67,5 +69,5 @@ tools/
 
 ## Examples
 
-- [`examples/minimal_macos`](examples/minimal_macos)
-- [`examples/tauri_with_vite`](examples/tauri_with_vite)
+- [`examples/minimal_macos`](examples/minimal_macos) exercises bundle layout mechanics with simple fixture inputs
+- [`examples/tauri_with_vite`](examples/tauri_with_vite) vendors a real `create tauri-app` Vue/Vite project and builds its example inputs from source during Bazel execution

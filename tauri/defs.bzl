@@ -6,6 +6,7 @@ tauri_bundle_inputs = rule(
     attrs = {
         "frontend_dist": attr.label(allow_files = True),
         "main_binary": attr.label(allow_single_file = True, mandatory = True),
+        "main_binary_name": attr.string(),
         "sidecars": attr.label_list(allow_files = True),
         "resources": attr.label_list(allow_files = True),
         "resource_map": attr.label_keyed_string_dict(allow_files = True),

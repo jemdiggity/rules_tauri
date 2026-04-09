@@ -1,6 +1,8 @@
 package(default_visibility = ["//visibility:public"])
 
 exports_files([
+    "build_tauri_example_binary.sh",
+    "build_tauri_example_frontend.sh",
     "make_manifest.py",
     "make_plist.py",
 ])

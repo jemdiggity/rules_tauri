@@ -46,7 +46,7 @@ def tauri_bundle_inputs_impl(ctx):
         fail("exactly one of version or version_file must be set")
 
     main_binary = ctx.file.main_binary
-    main_binary_name = main_binary.basename
+    main_binary_name = ctx.attr.main_binary_name if ctx.attr.main_binary_name else main_binary.basename
     version_value = ctx.attr.version if has_version else "<from VERSION file>"
 
     info_plist = ctx.actions.declare_file(ctx.label.name + "_Info.plist")
@@ -117,14 +117,6 @@ def tauri_bundle_inputs_impl(ctx):
         "main_binary",
     ))
 
-    for file in frontend_files:
-        manifest_inputs.append(file)
-        entries.append(manifest_entry(
-            file.path,
-            "Contents/Resources/frontend/%s" % normalize_resource_relpath(file.short_path),
-            "frontend_dist",
-        ))
-
     for file in resource_files:
         manifest_inputs.append(file)
         entries.append(manifest_entry(
@@ -161,14 +153,6 @@ def tauri_bundle_inputs_impl(ctx):
             file.path,
             "Contents/Resources/%s" % file.basename,
             "icon",
-        ))
-
-    for file in capability_files:
-        manifest_inputs.append(file)
-        entries.append(manifest_entry(
-            file.path,
-            "Contents/Resources/tauri/capabilities/%s" % file.basename,
-            "capability",
         ))
 
     for file in framework_files:

@@ -1,4 +1,86 @@
 package(default_visibility = ["//visibility:public"])
 
-# Placeholder example workspace. This example is intended to show how a caller
-# can provide `frontend_dist` built elsewhere and feed it into `rules_tauri`.
+load("//tauri:defs.bzl", "tauri_bundle_inputs", "tauri_macos_app")
+load(":example_build.bzl", "example_frontend_dist")
+
+example_frontend_dist(
+    name = "frontend_dist",
+    srcs = [":app_src"],
+    app_dir = "examples/tauri_with_vite/app",
+)
+
+filegroup(
+    name = "app_src",
+    srcs = glob(
+        ["app/**"],
+        exclude = [
+            "app/dist/**",
+            "app/node_modules/**",
+            "app/src-tauri/target/**",
+        ],
+    ),
+)
+
+genrule(
+    name = "main_binary_arm64",
+    srcs = [":app_src", ":frontend_dist"],
+    outs = ["main_binary_arm64_bin"],
+    cmd = "$(location //tools:build_tauri_example_binary.sh) examples/tauri_with_vite/app $(location :frontend_dist) aarch64-apple-darwin tauri-with-vite $@",
+    tools = ["//tools:build_tauri_example_binary.sh"],
+)
+
+genrule(
+    name = "main_binary_x86_64",
+    srcs = [":app_src", ":frontend_dist"],
+    outs = ["main_binary_x86_64_bin"],
+    cmd = "$(location //tools:build_tauri_example_binary.sh) examples/tauri_with_vite/app $(location :frontend_dist) x86_64-apple-darwin tauri-with-vite $@",
+    tools = ["//tools:build_tauri_example_binary.sh"],
+)
+
+tauri_bundle_inputs(
+    name = "bundle_inputs_arm64",
+    frontend_dist = ":frontend_dist",
+    main_binary = ":main_binary_arm64",
+    main_binary_name = "tauri-with-vite",
+    icons = ["src/icons/icon.icns"],
+    tauri_config = "src/tauri.conf.json",
+    capabilities = ["app/src-tauri/capabilities/default.json"],
+    bundle_id = "com.jeremyhale.tauri-with-vite",
+    product_name = "tauri-with-vite",
+    version = "0.1.0",
+    target_triple = "aarch64-apple-darwin",
+)
+
+tauri_macos_app(
+    name = "app_arm64",
+    bundle = ":bundle_inputs_arm64",
+)
+
+tauri_bundle_inputs(
+    name = "bundle_inputs_x86_64",
+    frontend_dist = ":frontend_dist",
+    main_binary = ":main_binary_x86_64",
+    main_binary_name = "tauri-with-vite",
+    icons = ["src/icons/icon.icns"],
+    tauri_config = "src/tauri.conf.json",
+    capabilities = ["app/src-tauri/capabilities/default.json"],
+    bundle_id = "com.jeremyhale.tauri-with-vite",
+    product_name = "tauri-with-vite",
+    version = "0.1.0",
+    target_triple = "x86_64-apple-darwin",
+)
+
+tauri_macos_app(
+    name = "app_x86_64",
+    bundle = ":bundle_inputs_x86_64",
+)
+
+alias(
+    name = "bundle_inputs",
+    actual = ":bundle_inputs_arm64",
+)
+
+alias(
+    name = "app",
+    actual = ":app_arm64",
+)
