@@ -6,11 +6,11 @@ app_root="$repo_root/examples/tauri_with_vite/app"
 src_tauri_dir="$app_root/src-tauri"
 
 cd "$app_root"
-bun install
-bun run build
+pnpm install --frozen-lockfile
+pnpm build
 
 cd "$app_root"
-bun run tauri build --bundles app
+pnpm exec tauri build --bundles app
 
 upstream_app="$src_tauri_dir/target/release/bundle/macos/tauri-with-vite.app"
 cd "$repo_root"

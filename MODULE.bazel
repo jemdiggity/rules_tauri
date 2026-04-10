@@ -4,8 +4,26 @@ module(
     compatibility_level = 1,
 )
 
+bazel_dep(name = "aspect_rules_js", version = "3.0.3")
 bazel_dep(name = "rules_rust", version = "0.69.0")
+bazel_dep(name = "rules_nodejs", version = "6.5.0")
 bazel_dep(name = "platforms", version = "1.0.0")
+
+node = use_extension("@rules_nodejs//nodejs:extensions.bzl", "node")
+node.toolchain(node_version = "24.13.0")
+use_repo(node, "nodejs_toolchains")
+
+pnpm = use_extension("@aspect_rules_js//npm:extensions.bzl", "pnpm")
+use_repo(pnpm, "pnpm")
+pnpm.pnpm(pnpm_version = "10.29.3")
+
+npm = use_extension("@aspect_rules_js//npm:extensions.bzl", "npm")
+npm.npm_translate_lock(
+    name = "npm",
+    npmrc = "//examples/tauri_with_vite/app:.npmrc",
+    pnpm_lock = "//examples/tauri_with_vite/app:pnpm-lock.yaml",
+)
+use_repo(npm, "npm")
 
 rust = use_extension("@rules_rust//rust:extensions.bzl", "rust")
 rust.toolchain(
@@ -16,9 +34,6 @@ rust.toolchain(
         "x86_64-apple-darwin",
     ],
 )
-
-host_tools = use_extension("//tools:extensions.bzl", "host_tools")
-use_repo(host_tools, "rules_tauri_host_bun")
 
 crate = use_extension("@rules_rust//crate_universe:extensions.bzl", "crate")
 crate.from_cargo(

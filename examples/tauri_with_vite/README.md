@@ -17,9 +17,9 @@ Build with:
 bazel build //examples/tauri_with_vite:app_arm64 //examples/tauri_with_vite:app_x86_64
 ```
 
-The vendored source was produced from the current upstream generator with:
+The vendored source started from the current upstream generator's Vue template and was then adapted to use pnpm as the package-manager source of truth for Bazel:
 
 ```sh
-bunx create-tauri-app@latest --template vue --manager bun --yes tauri-with-vite
+pnpm create tauri-app@latest --template vue --manager pnpm --yes tauri-with-vite
 cd tauri-with-vite
 ```

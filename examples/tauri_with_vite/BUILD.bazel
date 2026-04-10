@@ -1,7 +1,7 @@
 package(default_visibility = ["//visibility:public"])
 
 load("//tauri:defs.bzl", "tauri_bundle_inputs", "tauri_macos_app")
-load(":example_build.bzl", "single_file_target")
+load(":example_build.bzl", "exec_target", "single_file_target")
 
 platform(
     name = "macos_arm64",
@@ -31,9 +31,14 @@ single_file_target(
     target = "//examples/tauri_with_vite/app/src-tauri:tauri_with_vite_bin",
 )
 
+exec_target(
+    name = "frontend_dist",
+    target = "//examples/tauri_with_vite/app:dist",
+)
+
 tauri_bundle_inputs(
     name = "bundle_inputs_arm64",
-    frontend_dist = "//examples/tauri_with_vite/app:dist",
+    frontend_dist = ":frontend_dist",
     main_binary = ":main_binary_arm64",
     main_binary_name = "tauri-with-vite",
     icons = ["src/icons/icon.icns"],
@@ -52,7 +57,7 @@ tauri_macos_app(
 
 tauri_bundle_inputs(
     name = "bundle_inputs_x86_64",
-    frontend_dist = "//examples/tauri_with_vite/app:dist",
+    frontend_dist = ":frontend_dist",
     main_binary = ":main_binary_x86_64",
     main_binary_name = "tauri-with-vite",
     icons = ["src/icons/icon.icns"],

@@ -1,6 +1,16 @@
 package(default_visibility = ["//visibility:public"])
 
-load("//examples/tauri_with_vite:example_build.bzl", "example_frontend_dist")
+load("@aspect_rules_js//js:defs.bzl", "js_run_binary")
+load("@npm//:defs.bzl", "npm_link_all_packages")
+load("@npm//examples/tauri_with_vite/app:vite/package_json.bzl", vite_bin = "bin")
+
+npm_link_all_packages(
+    name = "node_modules",
+)
+
+vite_bin.vite_binary(
+    name = "vite",
+)
 
 filegroup(
     name = "srcs",
@@ -14,8 +24,16 @@ filegroup(
     ),
 )
 
-example_frontend_dist(
+js_run_binary(
     name = "dist",
-    srcs = [":srcs"],
-    app_dir = "examples/tauri_with_vite/app",
+    tool = ":vite",
+    args = ["build"],
+    srcs = [
+        ":srcs",
+        ":node_modules",
+    ],
+    chdir = package_name(),
+    out_dirs = ["dist"],
+    mnemonic = "BuildTauriExampleFrontendDist",
+    progress_message = "Building Tauri example frontend dist %{label}",
 )
