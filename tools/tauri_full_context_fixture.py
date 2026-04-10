@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import argparse
+import json
 from pathlib import Path
 
 
@@ -18,14 +19,15 @@ def main() -> None:
     args = parse_args()
     embedded_assets = Path(args.embedded_assets_rust).read_text(encoding="utf-8").strip()
     runtime_authority = Path(args.runtime_authority_rust).read_text(encoding="utf-8").strip()
+    rust_string = json.dumps
     Path(args.out).write_text(
         (
             "// placeholder full fixture context\n"
-            f"const _: &str = {args.product_name!r};\n"
-            f"const _: &str = {args.version!r};\n"
-            f"const _: &str = {args.identifier!r};\n"
-            f"const _: &str = {embedded_assets!r};\n"
-            f"const _: &str = {runtime_authority!r};\n"
+            f"const _: &str = {rust_string(args.product_name)};\n"
+            f"const _: &str = {rust_string(args.version)};\n"
+            f"const _: &str = {rust_string(args.identifier)};\n"
+            f"const _: &str = {rust_string(embedded_assets)};\n"
+            f"const _: &str = {rust_string(runtime_authority)};\n"
         ),
         encoding="utf-8",
     )
