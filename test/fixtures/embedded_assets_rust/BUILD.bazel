@@ -25,3 +25,14 @@ genrule(
     outs = ["embedded_assets_rust.rs"],
     cmd = "$(execpath //tools:tauri_embedded_assets_rust_exec) $(location :asset_tree) $@",
 )
+
+genrule(
+    name = "embedded_assets_compressed_rust",
+    srcs = [":asset_tree"],
+    tools = [
+        "//tools/tauri_brotli_compress:tauri_brotli_compress_exec",
+        "//tools:tauri_embedded_assets_rust_exec",
+    ],
+    outs = ["embedded_assets_compressed_rust.rs"],
+    cmd = "$(execpath //tools:tauri_embedded_assets_rust_exec) --compressor $(execpath //tools/tauri_brotli_compress:tauri_brotli_compress_exec) --compression-quality 2 $(location :asset_tree) $@",
+)

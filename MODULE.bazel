@@ -54,6 +54,15 @@ crate.from_cargo(
         "x86_64-apple-darwin",
     ],
 )
+crate.from_cargo(
+    name = "tool_crates",
+    cargo_lockfile = "//tools/tauri_brotli_compress:Cargo.lock",
+    manifests = ["//tools/tauri_brotli_compress:Cargo.toml"],
+    supported_platform_triples = [
+        "aarch64-apple-darwin",
+        "x86_64-apple-darwin",
+    ],
+)
 crate.annotation(
     crate = "tauri-codegen",
     patch_args = ["-p1"],
@@ -88,4 +97,4 @@ crate.annotation(
     ],
     repositories = ["example_crates"],
 )
-use_repo(crate, "codegen_crates", "example_crates")
+use_repo(crate, "codegen_crates", "example_crates", "tool_crates")

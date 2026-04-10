@@ -59,10 +59,24 @@ fn render_embedded_assets_expr(embedded_assets_path: &Path) -> syn::Expr {
         )
     });
     let entries = extract_embedded_assets_entries(&syntax, embedded_assets_path);
+    let global_hashes = extract_global_csp_hashes(&syntax, embedded_assets_path);
+    let html_hashes = extract_html_csp_hashes(&syntax, embedded_assets_path);
 
     let mut map_entries = proc_macro2::TokenStream::new();
     for (key, value) in entries {
         map_entries.extend(quote!(#key => #value,));
+    }
+    let mut global_hash_tokens = proc_macro2::TokenStream::new();
+    for hash in global_hashes {
+        global_hash_tokens.extend(render_csp_hash_expr(&hash));
+    }
+    let mut html_hash_entries = proc_macro2::TokenStream::new();
+    for (html_key, hashes) in html_hashes {
+        let mut hash_tokens = proc_macro2::TokenStream::new();
+        for hash in hashes {
+            hash_tokens.extend(render_csp_hash_expr(&hash));
+        }
+        html_hash_entries.extend(quote!(#html_key => &[#hash_tokens],));
     }
     let marker = format!("RULES_TAURI_BAZEL_OWNED_EMBEDDED_ASSETS:{embedded_assets_hash:016x}");
 
@@ -72,11 +86,21 @@ fn render_embedded_assets_expr(embedded_assets_path: &Path) -> syn::Expr {
         const _: &str = #marker;
         EmbeddedAssets::new(
             phf_map! { #map_entries },
-            &[],
-            phf_map! {},
+            &[#global_hash_tokens],
+            phf_map! { #html_hash_entries },
         )
     }))
     .expect("failed to build Bazel-owned embedded assets expression")
+}
+
+fn render_csp_hash_expr(hash: &(syn::LitStr, syn::LitStr)) -> proc_macro2::TokenStream {
+    let kind = hash.0.value();
+    let value = &hash.1;
+    match kind.as_str() {
+        "script" => quote!(CspHash::Script(#value),),
+        "style" => quote!(CspHash::Style(#value),),
+        _ => panic!("unsupported CSP hash kind {kind:?}"),
+    }
 }
 
 fn extract_embedded_assets_entries(
@@ -132,6 +156,121 @@ fn extract_embedded_assets_entries(
         "failed to find EMBEDDED_ASSETS in {}",
         embedded_assets_path_display(embedded_assets_path)
     );
+}
+
+fn extract_global_csp_hashes(
+    file: &syn::File,
+    embedded_assets_path: &Path,
+) -> Vec<(syn::LitStr, syn::LitStr)> {
+    extract_hash_tuples_from_const(file, "GLOBAL_CSP_HASHES", embedded_assets_path)
+}
+
+fn extract_html_csp_hashes(
+    file: &syn::File,
+    embedded_assets_path: &Path,
+) -> Vec<(syn::LitStr, Vec<(syn::LitStr, syn::LitStr)>)> {
+    let item_const = find_const(file, "HTML_CSP_HASHES", embedded_assets_path);
+    let syn::Expr::Reference(array_ref) = &*item_const.expr else {
+        panic!("HTML_CSP_HASHES must be a reference to an array");
+    };
+    let syn::Expr::Array(array) = &*array_ref.expr else {
+        panic!("HTML_CSP_HASHES must reference an array literal");
+    };
+
+    let mut entries = Vec::new();
+    for element in &array.elems {
+        let syn::Expr::Tuple(tuple) = element else {
+            panic!("HTML_CSP_HASHES entry must be a tuple");
+        };
+        assert!(
+            tuple.elems.len() == 2,
+            "HTML_CSP_HASHES entry must contain exactly 2 elements"
+        );
+        let html_key = extract_string_literal_expr(&tuple.elems[0], "HTML_CSP_HASHES html key");
+        let syn::Expr::Reference(hash_array_ref) = &tuple.elems[1] else {
+            panic!("HTML_CSP_HASHES entry values must reference an array literal");
+        };
+        let syn::Expr::Array(hash_array) = &*hash_array_ref.expr else {
+            panic!("HTML_CSP_HASHES entry values must reference an array literal");
+        };
+        let mut hashes = Vec::new();
+        for hash_expr in &hash_array.elems {
+            let syn::Expr::Tuple(hash_tuple) = hash_expr else {
+                panic!("HTML_CSP_HASHES hash entry must be a tuple");
+            };
+            assert!(
+                hash_tuple.elems.len() == 2,
+                "HTML_CSP_HASHES hash entry must contain exactly 2 elements"
+            );
+            hashes.push((
+                extract_string_literal_expr(&hash_tuple.elems[0], "HTML_CSP_HASHES hash kind"),
+                extract_string_literal_expr(&hash_tuple.elems[1], "HTML_CSP_HASHES hash value"),
+            ));
+        }
+        entries.push((html_key, hashes));
+    }
+    entries
+}
+
+fn extract_hash_tuples_from_const(
+    file: &syn::File,
+    const_name: &str,
+    embedded_assets_path: &Path,
+) -> Vec<(syn::LitStr, syn::LitStr)> {
+    let item_const = find_const(file, const_name, embedded_assets_path);
+    let syn::Expr::Reference(array_ref) = &*item_const.expr else {
+        panic!("{const_name} must be a reference to an array");
+    };
+    let syn::Expr::Array(array) = &*array_ref.expr else {
+        panic!("{const_name} must reference an array literal");
+    };
+
+    let mut entries = Vec::new();
+    for element in &array.elems {
+        let syn::Expr::Tuple(tuple) = element else {
+            panic!("{const_name} entry must be a tuple");
+        };
+        assert!(
+            tuple.elems.len() == 2,
+            "{const_name} entry must contain exactly 2 elements"
+        );
+        entries.push((
+            extract_string_literal_expr(&tuple.elems[0], const_name),
+            extract_string_literal_expr(&tuple.elems[1], const_name),
+        ));
+    }
+    entries
+}
+
+fn find_const<'a>(
+    file: &'a syn::File,
+    const_name: &str,
+    embedded_assets_path: &Path,
+) -> &'a syn::ItemConst {
+    for item in &file.items {
+        let syn::Item::Const(item_const) = item else {
+            continue;
+        };
+        if item_const.ident == const_name {
+            return item_const;
+        }
+    }
+
+    panic!(
+        "failed to find {} in {}",
+        const_name,
+        embedded_assets_path_display(embedded_assets_path)
+    );
+}
+
+fn extract_string_literal_expr(expr: &syn::Expr, context: &str) -> syn::LitStr {
+    match expr {
+        syn::Expr::Lit(expr_lit) => match &expr_lit.lit {
+            syn::Lit::Str(value) => value.clone(),
+            _ => panic!("{context} must use string literals"),
+        },
+        _ => panic!("{context} must use literal expressions"),
+    }
 }
 
 fn embedded_assets_path_display(path: &Path) -> String {

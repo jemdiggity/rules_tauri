@@ -8,15 +8,14 @@ bazel build --action_env=PATH //test/fixtures/tauri_codegen:codegen_probe
 
 probe_bin="$repo_root/bazel-bin/test/fixtures/tauri_codegen/codegen_probe_bin"
 dist_dir="$repo_root/bazel-bin/test/fixtures/tauri_codegen/dist"
-generated_assets="$repo_root/bazel-bin/test/fixtures/tauri_codegen/embedded_assets_rust.rs"
+generated_assets="$repo_root/bazel-bin/test/fixtures/tauri_codegen/embedded_assets_compressed_rust.rs"
 context_rs="$repo_root/bazel-bin/test/fixtures/tauri_codegen/src-tauri/build_script.out_dir/tauri-build-context.rs"
 
 test -f "$probe_bin"
 test -d "$dist_dir"
 test -f "$generated_assets"
 test -f "$context_rs"
-strings "$probe_bin" | grep -q "/assets/index-"
-strings "$probe_bin" | grep -q "/vite.svg"
+"$probe_bin"
 if grep -q "tauri-codegen-assets/" "$context_rs"; then
     echo "expected Bazel-owned embedded-assets seam, found upstream tauri-codegen-assets output" >&2
     exit 1
@@ -200,37 +199,32 @@ def extract_marked_entries(text: str, marker: str) -> tuple[str, str]:
     raise SystemExit("unterminated phf_map! block in generated context")
 
 
-def parse_context_pairs(path: pathlib.Path, marker: str) -> list[tuple[str, bytes]]:
+def parse_context_pairs_and_hash_metadata(path: pathlib.Path, marker: str):
     text = path.read_text(encoding="utf-8")
     entries_text, suffix = extract_marked_entries(text, marker)
-    if not re.fullmatch(
-        r'\s*,\s*&\s*\[\s*\]\s*,\s*phf_map\s*!\s*\{\s*\}\s*,\s*\)\s*\}\)\s*\}\s*',
-        suffix,
-    ):
-        raise SystemExit(
-            f"expected empty global/html hash metadata in Bazel-owned embedded assets block from {path}"
-        )
 
     pairs = []
     for key, value in PAIR_RE.findall(entries_text):
         pairs.append((decode_rust_string(key), decode_rust_byte_string(value)))
     if not pairs:
         raise SystemExit(f"failed to parse embedded assets from {path}")
-    return pairs
+
+    global_hashes = re.findall(r'CspHash\s*::\s*Script\s*\(\s*("(?:(?:\\.)|[^"])*")\s*\)', suffix)
+    html_hashes_present = re.search(
+        r'phf_map\s*!\s*\{\s*"/index\.html"\s*=>',
+        suffix,
+    ) is not None
+    return pairs, [decode_rust_string(token) for token in global_hashes], html_hashes_present
 
 
-expected_input_pairs = parse_dist_pairs(pathlib.Path(sys.argv[1]))
 generated_pairs = parse_generated_pairs(pathlib.Path(sys.argv[2]))
 marker = f"RULES_TAURI_BAZEL_OWNED_EMBEDDED_ASSETS:{fnv1a64(pathlib.Path(sys.argv[2]).read_bytes()):016x}"
-actual_pairs = parse_context_pairs(pathlib.Path(sys.argv[3]), marker)
+actual_pairs, global_hashes, html_hashes_present = parse_context_pairs_and_hash_metadata(pathlib.Path(sys.argv[3]), marker)
 
 generated_keys = [key for key, _ in generated_pairs]
-expected_keys = [key for key, _ in expected_input_pairs]
 actual_keys = [key for key, _ in actual_pairs]
 if len(set(generated_keys)) != len(generated_keys):
     raise SystemExit(f"duplicate generated embedded asset keys detected: {generated_keys!r}")
-if len(set(expected_keys)) != len(expected_keys):
-    raise SystemExit(f"duplicate expected embedded asset keys detected: {expected_keys!r}")
 if len(set(actual_keys)) != len(actual_keys):
     raise SystemExit(f"duplicate actual embedded asset keys detected: {actual_keys!r}")
 
@@ -241,14 +235,15 @@ if actual_pairs != generated_pairs:
         f"actual:    {actual_pairs!r}"
     )
 
-expected = dict(expected_input_pairs)
-actual = dict(actual_pairs)
-if actual != expected:
+expected_global_hashes = ["'sha256-Jl5nE06v62vFFK47dsthP8pGPv/wqI4pS/iJOPDBVJs='"]
+if global_hashes != expected_global_hashes:
     raise SystemExit(
-        "codegen fixture embedded assets differ\n"
-        f"expected: {expected!r}\n"
-        f"actual:   {actual!r}"
+        "codegen fixture global CSP script hashes did not match the Bazel-owned seam expectation\n"
+        f"expected: {expected_global_hashes!r}\n"
+        f"actual:   {global_hashes!r}"
     )
+if html_hashes_present:
+    raise SystemExit("did not expect fixture-specific inline HTML hashes for /index.html")
 PY
 
 echo "rules_rust tauri codegen fixture passed"

@@ -1,0 +1,27 @@
+package(default_visibility = ["//visibility:public"])
+
+load("@rules_rust//rust:defs.bzl", "rust_binary")
+load("@tool_crates//:defs.bzl", "aliases", "all_crate_deps")
+
+exports_files([
+    "Cargo.toml",
+    "Cargo.lock",
+])
+
+rust_binary(
+    name = "tauri_brotli_compress_exec",
+    srcs = ["src/main.rs"],
+    crate_name = "tauri_brotli_compress",
+    edition = "2021",
+    aliases = aliases(),
+    deps = all_crate_deps(normal = True),
+)
+
+rust_binary(
+    name = "tauri_transform_assets_exec",
+    srcs = ["src/transform_main.rs"],
+    crate_name = "tauri_transform_assets",
+    edition = "2021",
+    aliases = aliases(),
+    deps = all_crate_deps(normal = True),
+)

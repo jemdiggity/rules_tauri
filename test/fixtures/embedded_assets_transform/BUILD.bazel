@@ -1,0 +1,22 @@
+package(default_visibility = ["//visibility:public"])
+
+load("//test/fixtures/tauri_codegen:defs.bzl", "copy_tree")
+
+filegroup(
+    name = "asset_srcs",
+    srcs = glob(["assets/**"]),
+)
+
+copy_tree(
+    name = "asset_tree",
+    srcs = [":asset_srcs"],
+    strip_prefix = "assets/",
+)
+
+genrule(
+    name = "transformed_assets",
+    srcs = [":asset_tree"],
+    tools = ["//tools/tauri_brotli_compress:tauri_transform_assets_exec"],
+    outs = ["transformed_assets.json"],
+    cmd = "$(execpath //tools/tauri_brotli_compress:tauri_transform_assets_exec) $(location :asset_tree) $@",
+)
