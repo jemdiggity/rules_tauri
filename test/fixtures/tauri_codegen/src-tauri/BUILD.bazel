@@ -11,6 +11,7 @@ filegroup(
         "Cargo.toml",
         "tauri.conf.json",
         "build.rs",
+        "upstream_build.rs",
     ] + glob([
         "capabilities/**",
         "icons/**",
@@ -55,6 +56,7 @@ cargo_build_script(
         ":cargo_srcs",
         ":tauri_build_data",
         ":full_context_rust",
+        ":upstream_build_script",
         "//test/fixtures/tauri_codegen:dist",
         "//test/fixtures/tauri_codegen:embedded_assets_compressed_rust",
     ],
@@ -62,26 +64,51 @@ cargo_build_script(
         ":cargo_srcs",
         ":tauri_build_data",
         ":full_context_rust",
+        ":upstream_build_script",
         "//test/fixtures/tauri_codegen:dist",
         "//test/fixtures/tauri_codegen:embedded_assets_compressed_rust",
     ],
     build_script_env = {
         "DEP_TAURI_DEV": "false",
         "RULES_TAURI_BAZEL_FULL_CONTEXT": "$(location :full_context_rust)",
+        "RULES_TAURI_BAZEL_UPSTREAM_OUT_DIR": "$(location :upstream_build_script)",
     },
 )
 
-genrule(
-    name = "runtime_authority_rust",
-    outs = ["runtime_authority.rs"],
-    cmd = "printf '%s\n' ':: tauri :: runtime_authority ! ({})' > \"$@\"",
+cargo_build_script(
+    name = "upstream_build_script",
+    srcs = ["upstream_build.rs"],
+    crate_root = "upstream_build.rs",
+    crate_name = "upstream_build_script_build",
+    edition = "2021",
+    pkg_name = "tauri-codegen-fixture",
+    version = "0.1.0",
+    rundir = "test/fixtures/tauri_codegen/src-tauri",
+    aliases = aliases(build = True),
+    deps = all_crate_deps(build = True),
+    link_deps = ["@codegen_crates//:tauri"],
+    proc_macro_deps = all_crate_deps(build_proc_macro = True),
+    data = [
+        ":cargo_srcs",
+        ":tauri_build_data",
+        "//test/fixtures/tauri_codegen:dist",
+    ],
+    compile_data = [
+        ":cargo_srcs",
+        ":tauri_build_data",
+        "//test/fixtures/tauri_codegen:dist",
+    ],
+    build_script_env = {
+        "DEP_TAURI_DEV": "false",
+        "RULES_TAURI_FRONTEND_DIST": "$(location //test/fixtures/tauri_codegen:dist)",
+    },
 )
 
 genrule(
     name = "full_context_rust",
     srcs = [
         "//test/fixtures/tauri_codegen:embedded_assets_compressed_rust",
-        ":runtime_authority_rust",
+        ":upstream_build_script",
     ],
     tools = ["//tools:tauri_full_context_fixture_exec"],
     outs = ["tauri-build-context.rs"],
@@ -90,10 +117,7 @@ set -eu
 $(execpath //tools:tauri_full_context_fixture_exec) \
   --out "$@" \
   --embedded-assets-rust "$(location //test/fixtures/tauri_codegen:embedded_assets_compressed_rust)" \
-  --runtime-authority-rust "$(location :runtime_authority_rust)" \
-  --product-name "tauri-codegen-fixture" \
-  --version "0.1.0" \
-  --identifier "com.example.tauri-codegen-fixture"
+  --upstream-context-rust "$(location :upstream_build_script)/tauri-build-context.rs"
 """,
 )
 

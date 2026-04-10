@@ -74,7 +74,10 @@ def normalize_context(text: str) -> str:
         flags=re.S,
     )
     text = re.sub(
-        r'inner \(\{ .*? (?:EmbeddedAssets :: new \(.*?\)|const _ : & str = "RULES_TAURI_BAZEL_OWNED_EMBEDDED_ASSETS:[0-9a-f]+" ; EmbeddedAssets::new\(\$EMBEDDED\)) \}\)',
+        r'inner\s*\(\s*\{\s*.*?(?:'
+        r'EmbeddedAssets\s*::\s*new\s*\(.*?\)'
+        r'|const\s*_\s*:\s*&\s*str\s*=\s*"RULES_TAURI_BAZEL_OWNED_EMBEDDED_ASSETS:[0-9a-f]+"\s*;.*?EmbeddedAssets\s*::\s*new\s*\(.*?\)'
+        r')\s*\}\s*\)',
         'inner({$EMBEDDED_ASSETS})',
         text,
         flags=re.S,
