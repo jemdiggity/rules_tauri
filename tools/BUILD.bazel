@@ -5,4 +5,7 @@ exports_files([
     "build_tauri_example_frontend.sh",
     "make_manifest.py",
     "make_plist.py",
+    "tauri-codegen-bazel-inline-assets.patch",
+    "tauri-utils-bazel-debug-assertions.patch",
+    "tauri-utils-bazel-permission-paths.patch",
 ])

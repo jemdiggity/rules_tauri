@@ -70,4 +70,5 @@ tools/
 ## Examples
 
 - [`examples/minimal_macos`](examples/minimal_macos) exercises bundle layout mechanics with simple fixture inputs
-- [`examples/tauri_with_vite`](examples/tauri_with_vite) vendors a real `create tauri-app` Vue/Vite project and builds its example inputs from source during Bazel execution
+- [`examples/tauri_with_vite`](examples/tauri_with_vite) vendors a real `create tauri-app` Vue/Vite project and builds its frontend and Tauri binary from source during Bazel execution
+- [`test/fixtures/tauri_codegen`](test/fixtures/tauri_codegen) isolates Tauri codegen and embedded-asset behavior under `rules_rust`

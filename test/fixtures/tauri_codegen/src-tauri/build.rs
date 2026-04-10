@@ -7,7 +7,6 @@ fn main() {
     if let Ok(frontend_dist) = std::env::var("RULES_TAURI_FRONTEND_DIST") {
         let config_patch = serde_json::json!({
             "build": {
-                "devUrl": serde_json::Value::Null,
                 "frontendDist": frontend_dist,
             },
         });

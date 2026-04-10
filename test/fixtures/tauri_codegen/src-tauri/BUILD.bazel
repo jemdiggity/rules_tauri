@@ -1,0 +1,93 @@
+package(default_visibility = ["//visibility:public"])
+
+load("@codegen_crates//:defs.bzl", "aliases", "all_crate_deps")
+load("@rules_rust//cargo:defs.bzl", "cargo_build_script")
+load("@rules_rust//rust:defs.bzl", "rust_binary", "rust_library")
+
+filegroup(
+    name = "cargo_srcs",
+    srcs = [
+        "Cargo.lock",
+        "Cargo.toml",
+        "tauri.conf.json",
+        "build.rs",
+    ] + glob([
+        "capabilities/**",
+        "icons/**",
+        "src/**/*.rs",
+    ]),
+)
+
+filegroup(
+    name = "icons",
+    srcs = glob(["icons/**"]),
+)
+
+filegroup(
+    name = "capabilities",
+    srcs = glob(["capabilities/**"]),
+)
+
+filegroup(
+    name = "tauri_build_data",
+    srcs = [
+        "tauri.conf.json",
+        ":capabilities",
+        ":icons",
+        "//test/fixtures/tauri_codegen:dist",
+    ],
+)
+
+cargo_build_script(
+    name = "build_script",
+    srcs = ["build.rs"],
+    crate_root = "build.rs",
+    crate_name = "build_script_build",
+    edition = "2021",
+    pkg_name = "tauri-codegen-fixture",
+    version = "0.1.0",
+    rundir = "test/fixtures/tauri_codegen/src-tauri",
+    aliases = aliases(build = True),
+    deps = all_crate_deps(build = True),
+    link_deps = ["@codegen_crates//:tauri"],
+    proc_macro_deps = all_crate_deps(build_proc_macro = True),
+    data = [
+        ":cargo_srcs",
+        ":tauri_build_data",
+        "//test/fixtures/tauri_codegen:dist",
+    ],
+    compile_data = [
+        ":cargo_srcs",
+        ":tauri_build_data",
+        "//test/fixtures/tauri_codegen:dist",
+    ],
+    build_script_env = {
+        "DEP_TAURI_DEV": "false",
+        "RULES_TAURI_FRONTEND_DIST": "$(location //test/fixtures/tauri_codegen:dist)",
+    },
+)
+
+rust_library(
+    name = "codegen_probe_lib",
+    srcs = ["src/lib.rs"],
+    crate_name = "tauri_codegen_fixture_lib",
+    edition = "2021",
+    aliases = aliases(),
+    crate_features = ["custom-protocol"],
+    compile_data = [
+        ":cargo_srcs",
+        ":tauri_build_data",
+        "//test/fixtures/tauri_codegen:dist",
+    ],
+    deps = all_crate_deps(normal = True) + [":build_script"],
+    proc_macro_deps = all_crate_deps(proc_macro = True),
+)
+
+rust_binary(
+    name = "codegen_probe",
+    srcs = ["src/main.rs"],
+    crate_name = "tauri_codegen_fixture",
+    edition = "2021",
+    crate_features = ["custom-protocol"],
+    deps = [":codegen_probe_lib"],
+)

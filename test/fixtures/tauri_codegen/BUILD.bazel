@@ -1,0 +1,24 @@
+package(default_visibility = ["//visibility:public"])
+
+load(":defs.bzl", "copy_tree")
+
+filegroup(
+    name = "dist_srcs",
+    srcs = glob(["dist/**"]),
+)
+
+copy_tree(
+    name = "dist",
+    srcs = [":dist_srcs"],
+    strip_prefix = "dist/",
+)
+
+filegroup(
+    name = "fixture_srcs",
+    srcs = glob(["dist/**"]) + ["//test/fixtures/tauri_codegen/src-tauri:cargo_srcs"],
+)
+
+alias(
+    name = "codegen_probe",
+    actual = "//test/fixtures/tauri_codegen/src-tauri:codegen_probe",
+)

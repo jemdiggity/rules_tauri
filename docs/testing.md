@@ -19,11 +19,18 @@ Examples should verify:
 - real Mach-O app binaries can be packaged for at least one realistic Tauri example
 - release bundle layout stays aligned with `cargo tauri build` for the checked parity dimensions
 - deterministic manifests across repeated builds
+- upstream-style Tauri asset embedding works under `rules_rust`
 
 The current smoke path is:
 
 ```sh
 sh ./test/validate_examples.sh
+```
+
+The focused `rules_rust`/Tauri codegen probe is:
+
+```sh
+./test/validate_rules_rust_codegen_fixture.sh
 ```
 
 ## Repository contract

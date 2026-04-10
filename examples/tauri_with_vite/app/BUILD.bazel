@@ -1,0 +1,21 @@
+package(default_visibility = ["//visibility:public"])
+
+load("//examples/tauri_with_vite:example_build.bzl", "example_frontend_dist")
+
+filegroup(
+    name = "srcs",
+    srcs = glob(
+        ["**"],
+        exclude = [
+            "dist/**",
+            "node_modules/**",
+            "src-tauri/target/**",
+        ],
+    ),
+)
+
+example_frontend_dist(
+    name = "dist",
+    srcs = [":srcs"],
+    app_dir = "examples/tauri_with_vite/app",
+)

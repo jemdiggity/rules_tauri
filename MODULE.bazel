@@ -3,3 +3,74 @@ module(
     version = "0.0.0",
     compatibility_level = 1,
 )
+
+bazel_dep(name = "rules_rust", version = "0.69.0")
+bazel_dep(name = "platforms", version = "1.0.0")
+
+rust = use_extension("@rules_rust//rust:extensions.bzl", "rust")
+rust.toolchain(
+    edition = "2021",
+    versions = ["1.93.1"],
+    extra_target_triples = [
+        "aarch64-apple-darwin",
+        "x86_64-apple-darwin",
+    ],
+)
+
+host_tools = use_extension("//tools:extensions.bzl", "host_tools")
+use_repo(host_tools, "rules_tauri_host_bun")
+
+crate = use_extension("@rules_rust//crate_universe:extensions.bzl", "crate")
+crate.from_cargo(
+    name = "codegen_crates",
+    cargo_lockfile = "//test/fixtures/tauri_codegen/src-tauri:Cargo.lock",
+    manifests = ["//test/fixtures/tauri_codegen/src-tauri:Cargo.toml"],
+    supported_platform_triples = [
+        "aarch64-apple-darwin",
+        "x86_64-apple-darwin",
+    ],
+)
+crate.from_cargo(
+    name = "example_crates",
+    cargo_lockfile = "//examples/tauri_with_vite/app/src-tauri:Cargo.lock",
+    manifests = ["//examples/tauri_with_vite/app/src-tauri:Cargo.toml"],
+    supported_platform_triples = [
+        "aarch64-apple-darwin",
+        "x86_64-apple-darwin",
+    ],
+)
+crate.annotation(
+    crate = "tauri-codegen",
+    patch_args = ["-p1"],
+    patches = [
+        "//tools:tauri-codegen-bazel-inline-assets.patch",
+    ],
+    repositories = ["codegen_crates"],
+)
+crate.annotation(
+    crate = "tauri-codegen",
+    patch_args = ["-p1"],
+    patches = [
+        "//tools:tauri-codegen-bazel-inline-assets.patch",
+    ],
+    repositories = ["example_crates"],
+)
+crate.annotation(
+    crate = "tauri-utils",
+    patch_args = ["-p1"],
+    patches = [
+        "//tools:tauri-utils-bazel-debug-assertions.patch",
+        "//tools:tauri-utils-bazel-permission-paths.patch",
+    ],
+    repositories = ["codegen_crates"],
+)
+crate.annotation(
+    crate = "tauri-utils",
+    patch_args = ["-p1"],
+    patches = [
+        "//tools:tauri-utils-bazel-debug-assertions.patch",
+        "//tools:tauri-utils-bazel-permission-paths.patch",
+    ],
+    repositories = ["example_crates"],
+)
+use_repo(crate, "codegen_crates", "example_crates")

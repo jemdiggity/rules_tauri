@@ -1,23 +1,33 @@
 #!/bin/sh
 set -eu
 
-if [ "$#" -ne 2 ]; then
-  echo "usage: $0 <app_src_dir> <output_dir>" >&2
+if [ "$#" -ne 2 ] && [ "$#" -ne 3 ]; then
+  echo "usage: $0 [<bun_bin>] <app_src_dir> <output_dir>" >&2
   exit 1
 fi
 
-app_src_dir=$1
-output_dir=$2
-exec_root=$(pwd)
-
-if [ -n "${BUN_BIN:-}" ]; then
+if [ "$#" -eq 3 ]; then
+  bun_bin=$1
+  app_src_dir=$2
+  output_dir=$3
+elif [ -n "${BUN_BIN:-}" ]; then
   bun_bin=$BUN_BIN
+  app_src_dir=$1
+  output_dir=$2
 elif bun_bin=$(command -v bun 2>/dev/null); then
-  :
+  app_src_dir=$1
+  output_dir=$2
 else
   echo "error: bun not found in PATH; set BUN_BIN or install bun" >&2
   exit 1
 fi
+
+exec_root=$(pwd)
+
+case "$bun_bin" in
+  /*) ;;
+  *) bun_bin="$exec_root/$bun_bin" ;;
+esac
 
 case "$output_dir" in
   /*) ;;

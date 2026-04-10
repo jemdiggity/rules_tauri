@@ -1,17 +1,17 @@
 def _example_frontend_dist_impl(ctx):
     out = ctx.actions.declare_directory(ctx.label.name)
     args = ctx.actions.args()
+    args.add(ctx.file._bun.path)
     args.add(ctx.attr.app_dir)
     args.add(out.path)
 
     ctx.actions.run(
         executable = ctx.executable._builder,
-        inputs = depset(ctx.files.srcs),
+        inputs = depset(ctx.files.srcs + [ctx.file._bun]),
         outputs = [out],
         arguments = [args],
         mnemonic = "BuildTauriExampleFrontendDist",
         progress_message = "Building Tauri example frontend dist for %s" % ctx.label.name,
-        use_default_shell_env = True,
     )
 
     return [DefaultInfo(files = depset([out]))]
@@ -27,5 +27,37 @@ example_frontend_dist = rule(
             allow_single_file = True,
             cfg = "exec",
         ),
+        "_bun": attr.label(
+            default = "@rules_tauri_host_bun//:bun",
+            allow_single_file = True,
+            cfg = "exec",
+        ),
+    },
+)
+
+def _target_platform_transition_impl(settings, attr):
+    return {
+        "//command_line_option:platforms": str(attr.platform),
+    }
+
+target_platform_transition = transition(
+    implementation = _target_platform_transition_impl,
+    inputs = [],
+    outputs = ["//command_line_option:platforms"],
+)
+
+def _single_file_target_impl(ctx):
+    if len(ctx.attr.target) != 1:
+        fail("expected exactly one transitioned target, got %d" % len(ctx.attr.target))
+    files = ctx.attr.target[0][DefaultInfo].files.to_list()
+    if len(files) != 1:
+        fail("target must provide exactly one file, got %d" % len(files))
+    return [DefaultInfo(files = depset(files))]
+
+single_file_target = rule(
+    implementation = _single_file_target_impl,
+    attrs = {
+        "platform": attr.label(mandatory = True),
+        "target": attr.label(mandatory = True, cfg = target_platform_transition),
     },
 )
