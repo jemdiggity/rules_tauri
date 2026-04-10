@@ -110,6 +110,12 @@ fn main() {
             .unwrap_or_else(|error| panic!("failed to chdir to {manifest_dir}: {error}"));
     }
 
+    if std::env::var_os("RULES_TAURI_BAZEL_FULL_CONTEXT").is_none() {
+        let attributes = tauri_build::Attributes::new().codegen(tauri_build::CodegenContext::new());
+        tauri_build::try_build(attributes).expect("failed to generate Tauri build context");
+        return;
+    }
+
     println!("cargo:rerun-if-env-changed=TAURI_CONFIG");
     println!("cargo:rerun-if-env-changed=REMOVE_UNUSED_COMMANDS");
     println!("cargo:rerun-if-changed=tauri.conf.json");
