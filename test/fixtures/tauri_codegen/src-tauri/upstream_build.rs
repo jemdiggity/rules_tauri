@@ -1,3 +1,5 @@
+mod build_contract;
+
 use quote::quote;
 use std::path::PathBuf;
 use syn::visit_mut::{self, VisitMut};

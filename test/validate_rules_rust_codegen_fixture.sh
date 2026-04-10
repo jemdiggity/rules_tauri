@@ -5,17 +5,45 @@ repo_root=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
 cd "$repo_root"
 
 bazel build --action_env=PATH //test/fixtures/tauri_codegen:codegen_probe
+bazel test //test/fixtures/tauri_codegen/src-tauri:build_contract_test
 
 probe_bin="$repo_root/bazel-bin/test/fixtures/tauri_codegen/codegen_probe_bin"
 dist_dir="$repo_root/bazel-bin/test/fixtures/tauri_codegen/dist"
 generated_assets="$repo_root/bazel-bin/test/fixtures/tauri_codegen/embedded_assets_compressed_rust.rs"
 context_rs="$repo_root/bazel-bin/test/fixtures/tauri_codegen/src-tauri/build_script.out_dir/tauri-build-context.rs"
+build_flags="$repo_root/bazel-bin/test/fixtures/tauri_codegen/src-tauri/build_script.flags"
+build_env="$repo_root/bazel-bin/test/fixtures/tauri_codegen/src-tauri/build_script.env"
+build_depenv="$repo_root/bazel-bin/test/fixtures/tauri_codegen/src-tauri/build_script.depenv"
+upstream_flags="$repo_root/bazel-bin/test/fixtures/tauri_codegen/src-tauri/upstream_build_script.flags"
+upstream_env="$repo_root/bazel-bin/test/fixtures/tauri_codegen/src-tauri/upstream_build_script.env"
+upstream_depenv="$repo_root/bazel-bin/test/fixtures/tauri_codegen/src-tauri/upstream_build_script.depenv"
 
 test -f "$probe_bin"
 test -d "$dist_dir"
 test -f "$generated_assets"
 test -f "$context_rs"
+test -f "$build_flags"
+test -f "$build_env"
+test -f "$build_depenv"
+test -f "$upstream_flags"
+test -f "$upstream_env"
+test -f "$upstream_depenv"
 "$probe_bin"
+cmp -s "$build_flags" "$upstream_flags"
+cmp -s "$build_env" "$upstream_env"
+python3 - "$build_depenv" "$upstream_depenv" <<'PY'
+import pathlib
+import re
+import sys
+
+def normalize(text: str) -> str:
+    return re.sub(r"build_script\.out_dir", "OUT_DIR", re.sub(r"upstream_build_script\.out_dir", "OUT_DIR", text))
+
+build = normalize(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
+upstream = normalize(pathlib.Path(sys.argv[2]).read_text(encoding="utf-8"))
+if build != upstream:
+    raise SystemExit(f"build script depenv mismatch\nexpected:\n{upstream}\nactual:\n{build}")
+PY
 if grep -q "tauri-codegen-assets/" "$context_rs"; then
     echo "expected Bazel-owned embedded-assets seam, found upstream tauri-codegen-assets output" >&2
     exit 1

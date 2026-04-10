@@ -1,3 +1,5 @@
+mod build_contract;
+
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -59,40 +61,36 @@ fn copy_upstream_out_dir(upstream_out_dir: &Path, out_dir: &Path) {
     }
 }
 
-fn sanitize_identifier(value: &str) -> String {
-    value
-        .chars()
-        .map(|ch| if ch.is_ascii_alphanumeric() { ch } else { '_' })
-        .collect()
-}
-
 fn emit_upstream_contract(out_dir: &Path) {
     let config: serde_json::Value =
         serde_json::from_str(&fs::read_to_string("tauri.conf.json").expect("failed to read tauri.conf.json"))
             .expect("failed to parse tauri.conf.json");
-    let product_name = config["productName"]
-        .as_str()
-        .expect("tauri.conf.json must contain productName");
     let identifier = config["identifier"]
         .as_str()
         .expect("tauri.conf.json must contain identifier");
-    let identifier_prefix = identifier
-        .rsplit_once('.')
-        .map(|(prefix, _)| prefix)
-        .unwrap_or(identifier);
+    let (android_package_name_app_name, android_package_name_prefix) =
+        build_contract::android_package_names(identifier);
+    let target_os = std::env::var("CARGO_CFG_TARGET_OS").expect("missing CARGO_CFG_TARGET_OS");
+    let mobile = target_os == "ios" || target_os == "android";
 
     println!("cargo:rustc-check-cfg=cfg(desktop)");
-    println!("cargo:rustc-cfg=desktop");
     println!("cargo:rustc-check-cfg=cfg(mobile)");
+    if mobile {
+        println!("cargo:rustc-cfg=mobile");
+    } else {
+        println!("cargo:rustc-cfg=desktop");
+    }
     println!("cargo:rustc-check-cfg=cfg(dev)");
-    println!("cargo:rustc-cfg=dev");
+    if build_contract::is_dev_enabled(std::env::var("DEP_TAURI_DEV").ok().as_deref()) {
+        println!("cargo:rustc-cfg=dev");
+    }
     println!(
         "cargo:rustc-env=TAURI_ANDROID_PACKAGE_NAME_APP_NAME={}",
-        sanitize_identifier(product_name)
+        android_package_name_app_name
     );
     println!(
         "cargo:rustc-env=TAURI_ANDROID_PACKAGE_NAME_PREFIX={}",
-        sanitize_identifier(identifier_prefix)
+        android_package_name_prefix
     );
     if let Ok(target) = std::env::var("TARGET") {
         println!("cargo:rustc-env=TAURI_ENV_TARGET_TRIPLE={target}");
