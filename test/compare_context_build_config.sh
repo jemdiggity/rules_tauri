@@ -6,6 +6,15 @@ fixture_src_tauri="$repo_root/test/fixtures/tauri_codegen/src-tauri"
 fixture_dist="$repo_root/test/fixtures/tauri_codegen/dist"
 cd "$repo_root"
 
+write_oracle_build_rs() {
+    cat >"$1" <<'EOF'
+fn main() {
+    let attributes = tauri_build::Attributes::new().codegen(tauri_build::CodegenContext::new());
+    tauri_build::try_build(attributes).expect("failed to generate Tauri build context");
+}
+EOF
+}
+
 tmpdir=$(mktemp -d)
 trap 'rm -rf "$tmpdir"' EXIT
 
@@ -13,6 +22,7 @@ oracle_root="$tmpdir/oracle"
 mkdir -p "$oracle_root"
 cp -R "$fixture_src_tauri" "$oracle_root/src-tauri"
 cp -R "$fixture_dist" "$oracle_root/dist"
+write_oracle_build_rs "$oracle_root/src-tauri/build.rs"
 
 (
     cd "$oracle_root/src-tauri"
