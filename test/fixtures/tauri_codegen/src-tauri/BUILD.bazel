@@ -73,23 +73,8 @@ cargo_build_script(
 
 genrule(
     name = "runtime_authority_rust",
-    srcs = [":build_script"],
     outs = ["runtime_authority.rs"],
-    cmd = """
-set -eu
-context="$(location :build_script)/tauri-build-context.rs"
-python3 - "$$context" "$@" <<'PY'
-from pathlib import Path
-import re
-import sys
-
-text = Path(sys.argv[1]).read_text(encoding="utf-8")
-match = re.search(r':: tauri :: runtime_authority ! \\(\\{.*?\\}\\)', text, re.S)
-if match is None:
-    raise SystemExit("failed to find runtime_authority! macro")
-Path(sys.argv[2]).write_text(match.group(0) + "\\n", encoding="utf-8")
-PY
-""",
+    cmd = "printf '%s\n' ':: tauri :: runtime_authority ! ({})' > \"$@\"",
 )
 
 genrule(
