@@ -13,6 +13,14 @@ copy_tree(
     strip_prefix = "dist/",
 )
 
+genrule(
+    name = "embedded_assets_rust",
+    srcs = [":dist"],
+    tools = ["//tools:tauri_embedded_assets_rust_exec"],
+    outs = ["embedded_assets_rust.rs"],
+    cmd = "$(execpath //tools:tauri_embedded_assets_rust_exec) $(location :dist) $@",
+)
+
 filegroup(
     name = "fixture_srcs",
     srcs = glob(["dist/**"]) + ["//test/fixtures/tauri_codegen/src-tauri:cargo_srcs"],
