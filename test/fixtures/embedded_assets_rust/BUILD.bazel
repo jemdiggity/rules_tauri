@@ -1,0 +1,11 @@
+package(default_visibility = ["//visibility:public"])
+
+filegroup(
+    name = "fixture_srcs",
+    srcs = glob(["assets/**"]) + ["oracle_build.rs"],
+)
+
+filegroup(
+    name = "asset_srcs",
+    srcs = glob(["assets/**"]),
+)
