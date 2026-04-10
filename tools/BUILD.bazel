@@ -1,8 +1,17 @@
 package(default_visibility = ["//visibility:public"])
 
+genrule(
+    name = "tauri_assets_manifest_exec",
+    srcs = ["tauri_assets_manifest.py"],
+    outs = ["tauri_assets_manifest"],
+    cmd = "cp $(location tauri_assets_manifest.py) $@ && chmod 755 $@",
+    executable = True,
+)
+
 exports_files([
     "make_manifest.py",
     "make_plist.py",
+    "tauri_assets_manifest.py",
     "tauri-codegen-bazel-inline-assets.patch",
     "tauri-utils-bazel-debug-assertions.patch",
     "tauri-utils-bazel-permission-paths.patch",

@@ -1,6 +1,27 @@
 package(default_visibility = ["//visibility:public"])
 
+load("//test/fixtures/tauri_codegen:defs.bzl", "copy_tree")
+
 filegroup(
     name = "fixture_srcs",
     srcs = glob(["assets/**"]) + ["oracle.py"],
+)
+
+filegroup(
+    name = "asset_srcs",
+    srcs = glob(["assets/**"]),
+)
+
+copy_tree(
+    name = "asset_tree",
+    srcs = [":asset_srcs"],
+    strip_prefix = "assets/",
+)
+
+genrule(
+    name = "asset_manifest",
+    srcs = [":asset_tree"],
+    tools = ["//tools:tauri_assets_manifest_exec"],
+    outs = ["asset_manifest.json"],
+    cmd = "$(execpath //tools:tauri_assets_manifest_exec) $(location :asset_tree) $@",
 )
