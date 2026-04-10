@@ -1,11 +1,27 @@
 package(default_visibility = ["//visibility:public"])
 
+load("//test/fixtures/tauri_codegen:defs.bzl", "copy_tree")
+
 filegroup(
     name = "fixture_srcs",
-    srcs = glob(["assets/**"]) + ["oracle_build.rs"],
+    srcs = glob(["assets/**"]) + ["oracle_build.rs", "oracle_Cargo.lock"],
 )
 
 filegroup(
     name = "asset_srcs",
     srcs = glob(["assets/**"]),
+)
+
+copy_tree(
+    name = "asset_tree",
+    srcs = [":asset_srcs"],
+    strip_prefix = "assets/",
+)
+
+genrule(
+    name = "embedded_assets_rust",
+    srcs = [":asset_tree"],
+    tools = ["//tools:tauri_embedded_assets_rust_exec"],
+    outs = ["embedded_assets_rust.rs"],
+    cmd = "$(execpath //tools:tauri_embedded_assets_rust_exec) $(location :asset_tree) $@",
 )
