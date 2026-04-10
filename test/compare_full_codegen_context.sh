@@ -31,6 +31,11 @@ import re
 import sys
 
 
+# Normalized seams:
+# - embedded assets expression body
+# - build.frontend_dist / with_config_parent path roots
+# - runtime authority macro body
+# - debug cfg wrappers and token formatting
 def normalize_context(text: str) -> str:
     text = text.replace("# [cfg (debug_assertions)] ", "")
     text = text.replace("move | |", "move ||")
