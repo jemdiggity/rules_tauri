@@ -36,6 +36,14 @@ exec_target(
     target = "//examples/tauri_with_vite/app:dist",
 )
 
+genrule(
+    name = "embedded_assets_rust",
+    srcs = [":frontend_dist"],
+    tools = ["//tools:tauri_embedded_assets_rust_exec"],
+    outs = ["embedded_assets_rust.rs"],
+    cmd = "$(execpath //tools:tauri_embedded_assets_rust_exec) $(location :frontend_dist) $@",
+)
+
 tauri_bundle_inputs(
     name = "bundle_inputs_arm64",
     frontend_dist = ":frontend_dist",

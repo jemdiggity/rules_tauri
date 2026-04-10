@@ -58,14 +58,17 @@ cargo_build_script(
         ":cargo_srcs",
         ":tauri_build_data",
         "//examples/tauri_with_vite:frontend_dist",
+        "//examples/tauri_with_vite:embedded_assets_rust",
     ],
     compile_data = [
         ":cargo_srcs",
         ":tauri_build_data",
         "//examples/tauri_with_vite:frontend_dist",
+        "//examples/tauri_with_vite:embedded_assets_rust",
     ],
     build_script_env = {
         "DEP_TAURI_DEV": "false",
+        "RULES_TAURI_BAZEL_EMBEDDED_ASSETS": "$(location //examples/tauri_with_vite:embedded_assets_rust)",
         "RULES_TAURI_FRONTEND_DIST": "$(location //examples/tauri_with_vite:frontend_dist)",
     },
 )

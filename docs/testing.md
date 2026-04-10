@@ -19,7 +19,7 @@ Examples should verify:
 - real Mach-O app binaries can be packaged for at least one realistic Tauri example
 - release bundle layout stays aligned with `cargo tauri build` for the checked parity dimensions
 - deterministic manifests across repeated builds
-- upstream-style Tauri asset embedding works under `rules_rust`
+- Bazel-owned embedded asset generation stays aligned with upstream Tauri embedding semantics under `rules_rust`
 
 The current smoke path is:
 
@@ -31,6 +31,13 @@ The focused `rules_rust`/Tauri codegen probe is:
 
 ```sh
 ./test/validate_rules_rust_codegen_fixture.sh
+```
+
+The embedded-assets seam comparisons are:
+
+```sh
+./test/compare_embedded_assets_order.sh
+./test/compare_embedded_assets_rust.sh
 ```
 
 ## Repository contract
