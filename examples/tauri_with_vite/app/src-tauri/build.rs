@@ -1,6 +1,108 @@
-use quote::quote;
+mod build_contract;
+
+use std::fs;
 use std::path::{Path, PathBuf};
-use syn::visit_mut::{self, VisitMut};
+
+fn copy_tree(source: &Path, destination: &Path) {
+    if source.is_dir() {
+        fs::create_dir_all(destination).unwrap_or_else(|error| {
+            panic!(
+                "failed to create destination directory {}: {error}",
+                destination.display()
+            )
+        });
+        for entry in fs::read_dir(source).unwrap_or_else(|error| {
+            panic!("failed to read source directory {}: {error}", source.display())
+        }) {
+            let entry = entry.unwrap_or_else(|error| {
+                panic!("failed to read entry from {}: {error}", source.display())
+            });
+            copy_tree(&entry.path(), &destination.join(entry.file_name()));
+        }
+        return;
+    }
+
+    let parent = destination.parent().expect("destination must have a parent");
+    fs::create_dir_all(parent).unwrap_or_else(|error| {
+        panic!(
+            "failed to create destination parent {}: {error}",
+            parent.display()
+        )
+    });
+    fs::copy(source, destination).unwrap_or_else(|error| {
+        panic!(
+            "failed to copy {} to {}: {error}",
+            source.display(),
+            destination.display()
+        )
+    });
+}
+
+fn copy_upstream_out_dir(upstream_out_dir: &Path, out_dir: &Path) {
+    for entry in fs::read_dir(upstream_out_dir).unwrap_or_else(|error| {
+        panic!(
+            "failed to read upstream out dir {}: {error}",
+            upstream_out_dir.display()
+        )
+    }) {
+        let entry = entry.unwrap_or_else(|error| {
+            panic!(
+                "failed to read entry from upstream out dir {}: {error}",
+                upstream_out_dir.display()
+            )
+        });
+        let path = entry.path();
+        if path.file_name().and_then(|name| name.to_str()) == Some("tauri-build-context.rs") {
+            continue;
+        }
+
+        let destination = out_dir.join(entry.file_name());
+        copy_tree(&path, &destination);
+    }
+}
+
+fn emit_upstream_contract(out_dir: &Path) {
+    let config: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string("tauri.conf.json").expect("failed to read tauri.conf.json"))
+            .expect("failed to parse tauri.conf.json");
+    let identifier = config["identifier"]
+        .as_str()
+        .expect("tauri.conf.json must contain identifier");
+    let (android_package_name_app_name, android_package_name_prefix) =
+        build_contract::android_package_names(identifier);
+    let target_os = std::env::var("CARGO_CFG_TARGET_OS").expect("missing CARGO_CFG_TARGET_OS");
+    let mobile = target_os == "ios" || target_os == "android";
+
+    println!("cargo:rustc-check-cfg=cfg(desktop)");
+    println!("cargo:rustc-check-cfg=cfg(mobile)");
+    if mobile {
+        println!("cargo:rustc-cfg=mobile");
+    } else {
+        println!("cargo:rustc-cfg=desktop");
+    }
+    println!("cargo:rustc-check-cfg=cfg(dev)");
+    if build_contract::is_dev_enabled(std::env::var("DEP_TAURI_DEV").ok().as_deref()) {
+        println!("cargo:rustc-cfg=dev");
+    }
+    println!(
+        "cargo:rustc-env=TAURI_ANDROID_PACKAGE_NAME_APP_NAME={}",
+        android_package_name_app_name
+    );
+    println!(
+        "cargo:rustc-env=TAURI_ANDROID_PACKAGE_NAME_PREFIX={}",
+        android_package_name_prefix
+    );
+    if let Ok(target) = std::env::var("TARGET") {
+        println!("cargo:rustc-env=TAURI_ENV_TARGET_TRIPLE={target}");
+    }
+    println!(
+        "cargo:PERMISSION_FILES_PATH={}",
+        out_dir
+            .join("app-manifest")
+            .join("__app__-permission-files")
+            .display()
+    );
+}
 
 fn main() {
     if let Ok(manifest_dir) = std::env::var("CARGO_MANIFEST_DIR") {
@@ -8,355 +110,33 @@ fn main() {
             .unwrap_or_else(|error| panic!("failed to chdir to {manifest_dir}: {error}"));
     }
 
-    if let Ok(frontend_dist) = std::env::var("RULES_TAURI_FRONTEND_DIST") {
-        let config_patch = serde_json::json!({
-            "build": {
-                "devUrl": serde_json::Value::Null,
-                "frontendDist": frontend_dist,
-            },
-        });
-        std::env::set_var("TAURI_CONFIG", config_patch.to_string());
-    }
-    println!("cargo:rerun-if-env-changed=RULES_TAURI_FRONTEND_DIST");
-    println!("cargo:rerun-if-env-changed=RULES_TAURI_BAZEL_EMBEDDED_ASSETS");
+    println!("cargo:rerun-if-env-changed=TAURI_CONFIG");
+    println!("cargo:rerun-if-env-changed=REMOVE_UNUSED_COMMANDS");
+    println!("cargo:rerun-if-changed=tauri.conf.json");
+    println!("cargo:rerun-if-changed=capabilities");
+    println!("cargo:rerun-if-changed=../dist");
 
-    let attributes = tauri_build::Attributes::new().codegen(tauri_build::CodegenContext::new());
-    tauri_build::try_build(attributes).expect("failed to generate Tauri build context");
+    let full_context_path =
+        std::env::var("RULES_TAURI_BAZEL_FULL_CONTEXT").expect("missing RULES_TAURI_BAZEL_FULL_CONTEXT");
+    println!("cargo:rerun-if-env-changed=RULES_TAURI_BAZEL_FULL_CONTEXT");
+    println!("cargo:rerun-if-changed={full_context_path}");
+    let upstream_out_dir = PathBuf::from(
+        std::env::var("RULES_TAURI_BAZEL_UPSTREAM_OUT_DIR")
+            .expect("missing RULES_TAURI_BAZEL_UPSTREAM_OUT_DIR"),
+    );
+    println!("cargo:rerun-if-env-changed=RULES_TAURI_BAZEL_UPSTREAM_OUT_DIR");
+    println!("cargo:rerun-if-changed={}", upstream_out_dir.display());
 
-    if let Ok(embedded_assets_path) = std::env::var("RULES_TAURI_BAZEL_EMBEDDED_ASSETS") {
-        println!("cargo:rerun-if-changed={embedded_assets_path}");
-        patch_codegen_context(Path::new(&embedded_assets_path));
-    }
-}
-
-fn patch_codegen_context(embedded_assets_path: &Path) {
-    let context_path = PathBuf::from(std::env::var("OUT_DIR").expect("missing OUT_DIR"))
-        .join("tauri-build-context.rs");
-    let context_source = std::fs::read_to_string(&context_path)
-        .unwrap_or_else(|error| panic!("failed to read {}: {error}", context_path.display()));
-    let mut context_expr: syn::Expr = syn::parse_str(&context_source).unwrap_or_else(|error| {
+    let out_dir = PathBuf::from(std::env::var("OUT_DIR").expect("missing OUT_DIR"));
+    let out_path = out_dir.join("tauri-build-context.rs");
+    fs::copy(&full_context_path, &out_path).unwrap_or_else(|error| {
         panic!(
-            "failed to parse generated Tauri context {}: {error}",
-            context_path.display()
+            "failed to copy {} to {}: {error}",
+            full_context_path,
+            out_path.display()
         )
     });
-    let replacement = render_embedded_assets_expr(embedded_assets_path);
-    replace_inner_assets_expr(&mut context_expr, replacement);
-    normalize_build_config_paths(&mut context_expr);
 
-    std::fs::write(&context_path, format!("{}\n", quote!(#context_expr)))
-        .unwrap_or_else(|error| panic!("failed to write {}: {error}", context_path.display()));
-}
-
-fn normalize_build_config_paths(context_expr: &mut syn::Expr) {
-    let mut patcher = GeneratedContextPathPatcher {
-        frontend_dist: syn::LitStr::new("../dist", proc_macro2::Span::call_site()),
-    };
-    patcher.visit_expr_mut(context_expr);
-}
-
-struct GeneratedContextPathPatcher {
-    frontend_dist: syn::LitStr,
-}
-
-impl VisitMut for GeneratedContextPathPatcher {
-    fn visit_expr_struct_mut(&mut self, node: &mut syn::ExprStruct) {
-        visit_mut::visit_expr_struct_mut(self, node);
-
-        let Some(last_segment) = node.path.segments.last() else {
-            return;
-        };
-        if last_segment.ident != "BuildConfig" {
-            return;
-        }
-
-        for field in &mut node.fields {
-            let syn::Member::Named(member) = &field.member else {
-                continue;
-            };
-            if member == "frontend_dist" {
-                let frontend_dist = &self.frontend_dist;
-                field.expr = syn::parse_quote!(
-                    :: core :: option :: Option :: Some(
-                        :: tauri :: utils :: config :: FrontendDist :: Directory(
-                            :: std :: path :: PathBuf :: from(#frontend_dist)
-                        )
-                    )
-                );
-            }
-        }
-    }
-}
-
-fn render_embedded_assets_expr(embedded_assets_path: &Path) -> syn::Expr {
-    let embedded_assets_source =
-        std::fs::read_to_string(embedded_assets_path).unwrap_or_else(|error| {
-            panic!("failed to read {}: {error}", embedded_assets_path.display())
-        });
-    let embedded_assets_hash = fnv1a64(embedded_assets_source.as_bytes());
-    let syntax = syn::parse_file(&embedded_assets_source).unwrap_or_else(|error| {
-        panic!(
-            "failed to parse generated embedded assets {}: {error}",
-            embedded_assets_path.display()
-        )
-    });
-    let entries = extract_embedded_assets_entries(&syntax, embedded_assets_path);
-    let global_hashes = extract_global_csp_hashes(&syntax, embedded_assets_path);
-    let html_hashes = extract_html_csp_hashes(&syntax, embedded_assets_path);
-
-    let mut map_entries = proc_macro2::TokenStream::new();
-    for (key, value) in entries {
-        map_entries.extend(quote!(#key => #value,));
-    }
-    let mut global_hash_tokens = proc_macro2::TokenStream::new();
-    for hash in global_hashes {
-        global_hash_tokens.extend(render_csp_hash_expr(&hash));
-    }
-    let mut html_hash_entries = proc_macro2::TokenStream::new();
-    for (html_key, hashes) in html_hashes {
-        let mut hash_tokens = proc_macro2::TokenStream::new();
-        for hash in hashes {
-            hash_tokens.extend(render_csp_hash_expr(&hash));
-        }
-        html_hash_entries.extend(quote!(#html_key => &[#hash_tokens],));
-    }
-    let marker = format!("RULES_TAURI_BAZEL_OWNED_EMBEDDED_ASSETS:{embedded_assets_hash:016x}");
-
-    syn::parse2(quote!({
-        #[allow(unused_imports)]
-        use ::tauri::utils::assets::{CspHash, EmbeddedAssets, phf, phf::phf_map};
-        const _: &str = #marker;
-        EmbeddedAssets::new(
-            phf_map! { #map_entries },
-            &[#global_hash_tokens],
-            phf_map! { #html_hash_entries },
-        )
-    }))
-    .expect("failed to build Bazel-owned embedded assets expression")
-}
-
-fn render_csp_hash_expr(hash: &(syn::LitStr, syn::LitStr)) -> proc_macro2::TokenStream {
-    let kind = hash.0.value();
-    let value = &hash.1;
-    match kind.as_str() {
-        "script" => quote!(CspHash::Script(#value),),
-        "style" => quote!(CspHash::Style(#value),),
-        _ => panic!("unsupported CSP hash kind {kind:?}"),
-    }
-}
-
-fn extract_embedded_assets_entries(
-    file: &syn::File,
-    embedded_assets_path: &Path,
-) -> Vec<(syn::LitStr, syn::LitByteStr)> {
-    let mut entries = Vec::new();
-    for item in &file.items {
-        let syn::Item::Const(item_const) = item else {
-            continue;
-        };
-        if item_const.ident != "EMBEDDED_ASSETS" {
-            continue;
-        }
-
-        let syn::Expr::Reference(array_ref) = &*item_const.expr else {
-            panic!("EMBEDDED_ASSETS must be a reference to an array");
-        };
-        let syn::Expr::Array(array) = &*array_ref.expr else {
-            panic!("EMBEDDED_ASSETS must reference an array literal");
-        };
-
-        for element in &array.elems {
-            let syn::Expr::Tuple(tuple) = element else {
-                panic!("embedded assets entry must be a tuple");
-            };
-            assert!(
-                tuple.elems.len() == 2,
-                "embedded assets entry must contain exactly 2 elements"
-            );
-
-            let key = match &tuple.elems[0] {
-                syn::Expr::Lit(expr) => match &expr.lit {
-                    syn::Lit::Str(value) => value.clone(),
-                    _ => panic!("embedded assets key must be a string literal"),
-                },
-                _ => panic!("embedded assets key must be a literal expression"),
-            };
-            let value = match &tuple.elems[1] {
-                syn::Expr::Lit(expr) => match &expr.lit {
-                    syn::Lit::ByteStr(value) => value.clone(),
-                    _ => panic!("embedded assets value must be a byte string literal"),
-                },
-                _ => panic!("embedded assets value must be a literal expression"),
-            };
-            entries.push((key, value));
-        }
-
-        return entries;
-    }
-
-    panic!(
-        "failed to find EMBEDDED_ASSETS in {}",
-        embedded_assets_path_display(embedded_assets_path)
-    );
-}
-
-fn extract_global_csp_hashes(
-    file: &syn::File,
-    embedded_assets_path: &Path,
-) -> Vec<(syn::LitStr, syn::LitStr)> {
-    extract_hash_tuples_from_const(file, "GLOBAL_CSP_HASHES", embedded_assets_path)
-}
-
-fn extract_html_csp_hashes(
-    file: &syn::File,
-    embedded_assets_path: &Path,
-) -> Vec<(syn::LitStr, Vec<(syn::LitStr, syn::LitStr)>)> {
-    let item_const = find_const(file, "HTML_CSP_HASHES", embedded_assets_path);
-    let syn::Expr::Reference(array_ref) = &*item_const.expr else {
-        panic!("HTML_CSP_HASHES must be a reference to an array");
-    };
-    let syn::Expr::Array(array) = &*array_ref.expr else {
-        panic!("HTML_CSP_HASHES must reference an array literal");
-    };
-
-    let mut entries = Vec::new();
-    for element in &array.elems {
-        let syn::Expr::Tuple(tuple) = element else {
-            panic!("HTML_CSP_HASHES entry must be a tuple");
-        };
-        assert!(
-            tuple.elems.len() == 2,
-            "HTML_CSP_HASHES entry must contain exactly 2 elements"
-        );
-        let html_key = extract_string_literal_expr(&tuple.elems[0], "HTML_CSP_HASHES html key");
-        let syn::Expr::Reference(hash_array_ref) = &tuple.elems[1] else {
-            panic!("HTML_CSP_HASHES entry values must reference an array literal");
-        };
-        let syn::Expr::Array(hash_array) = &*hash_array_ref.expr else {
-            panic!("HTML_CSP_HASHES entry values must reference an array literal");
-        };
-        let mut hashes = Vec::new();
-        for hash_expr in &hash_array.elems {
-            let syn::Expr::Tuple(hash_tuple) = hash_expr else {
-                panic!("HTML_CSP_HASHES hash entry must be a tuple");
-            };
-            assert!(
-                hash_tuple.elems.len() == 2,
-                "HTML_CSP_HASHES hash entry must contain exactly 2 elements"
-            );
-            hashes.push((
-                extract_string_literal_expr(&hash_tuple.elems[0], "HTML_CSP_HASHES hash kind"),
-                extract_string_literal_expr(&hash_tuple.elems[1], "HTML_CSP_HASHES hash value"),
-            ));
-        }
-        entries.push((html_key, hashes));
-    }
-    entries
-}
-
-fn extract_hash_tuples_from_const(
-    file: &syn::File,
-    const_name: &str,
-    embedded_assets_path: &Path,
-) -> Vec<(syn::LitStr, syn::LitStr)> {
-    let item_const = find_const(file, const_name, embedded_assets_path);
-    let syn::Expr::Reference(array_ref) = &*item_const.expr else {
-        panic!("{const_name} must be a reference to an array");
-    };
-    let syn::Expr::Array(array) = &*array_ref.expr else {
-        panic!("{const_name} must reference an array literal");
-    };
-
-    let mut entries = Vec::new();
-    for element in &array.elems {
-        let syn::Expr::Tuple(tuple) = element else {
-            panic!("{const_name} entry must be a tuple");
-        };
-        assert!(
-            tuple.elems.len() == 2,
-            "{const_name} entry must contain exactly 2 elements"
-        );
-        entries.push((
-            extract_string_literal_expr(&tuple.elems[0], const_name),
-            extract_string_literal_expr(&tuple.elems[1], const_name),
-        ));
-    }
-    entries
-}
-
-fn find_const<'a>(
-    file: &'a syn::File,
-    const_name: &str,
-    embedded_assets_path: &Path,
-) -> &'a syn::ItemConst {
-    for item in &file.items {
-        let syn::Item::Const(item_const) = item else {
-            continue;
-        };
-        if item_const.ident == const_name {
-            return item_const;
-        }
-    }
-
-    panic!(
-        "failed to find {} in {}",
-        const_name,
-        embedded_assets_path_display(embedded_assets_path)
-    );
-}
-
-fn extract_string_literal_expr(expr: &syn::Expr, context: &str) -> syn::LitStr {
-    match expr {
-        syn::Expr::Lit(expr_lit) => match &expr_lit.lit {
-            syn::Lit::Str(value) => value.clone(),
-            _ => panic!("{context} must use string literals"),
-        },
-        _ => panic!("{context} must use literal expressions"),
-    }
-}
-
-fn embedded_assets_path_display(path: &Path) -> String {
-    path.display().to_string()
-}
-
-fn fnv1a64(bytes: &[u8]) -> u64 {
-    let mut hash = 0xcbf29ce484222325_u64;
-    for byte in bytes {
-        hash ^= u64::from(*byte);
-        hash = hash.wrapping_mul(0x100000001b3);
-    }
-    hash
-}
-
-fn replace_inner_assets_expr(context_expr: &mut syn::Expr, replacement: syn::Expr) {
-    let syn::Expr::Block(outer_block) = context_expr else {
-        panic!("generated Tauri context must be a block expression");
-    };
-    let last_stmt = outer_block
-        .block
-        .stmts
-        .last_mut()
-        .expect("generated Tauri context is missing the final inner(...) call");
-    let call = match last_stmt {
-        syn::Stmt::Expr(expr, _) => match expr {
-            syn::Expr::Call(call) => call,
-            _ => panic!("generated Tauri context final statement must be a call expression"),
-        },
-        _ => panic!("generated Tauri context final statement must be an expression"),
-    };
-    let syn::Expr::Path(path) = &*call.func else {
-        panic!("generated Tauri context final call must target inner");
-    };
-    assert!(
-        path.path
-            .segments
-            .last()
-            .is_some_and(|segment| segment.ident == "inner"),
-        "generated Tauri context final call must target inner"
-    );
-    assert!(
-        call.args.len() == 1,
-        "generated Tauri context final inner call must take exactly one argument"
-    );
-    call.args[0] = replacement;
+    copy_upstream_out_dir(&upstream_out_dir, &out_dir);
+    emit_upstream_contract(&out_dir);
 }

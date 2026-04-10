@@ -40,6 +40,23 @@ filegroup(
     ],
 )
 
+genrule(
+    name = "full_context_rust",
+    srcs = [
+        "//examples/tauri_with_vite:embedded_assets_rust",
+        ":upstream_build_script",
+    ],
+    tools = ["//tools:tauri_full_context_fixture_exec"],
+    outs = ["tauri-build-context.rs"],
+    cmd = """
+set -eu
+$(execpath //tools:tauri_full_context_fixture_exec) \
+  --out "$@" \
+  --embedded-assets-rust "$(location //examples/tauri_with_vite:embedded_assets_rust)" \
+  --upstream-context-rust "$(location :upstream_build_script)/tauri-build-context.rs"
+""",
+)
+
 cargo_build_script(
     name = "build_script",
     srcs = [
@@ -62,19 +79,23 @@ cargo_build_script(
     data = [
         ":cargo_srcs",
         ":tauri_build_data",
+        ":full_context_rust",
+        ":upstream_build_script",
         "//examples/tauri_with_vite:frontend_dist",
         "//examples/tauri_with_vite:embedded_assets_rust",
     ],
     compile_data = [
         ":cargo_srcs",
         ":tauri_build_data",
+        ":full_context_rust",
+        ":upstream_build_script",
         "//examples/tauri_with_vite:frontend_dist",
         "//examples/tauri_with_vite:embedded_assets_rust",
     ],
     build_script_env = {
         "DEP_TAURI_DEV": "false",
-        "RULES_TAURI_BAZEL_EMBEDDED_ASSETS": "$(location //examples/tauri_with_vite:embedded_assets_rust)",
-        "RULES_TAURI_FRONTEND_DIST": "$(location //examples/tauri_with_vite:frontend_dist)",
+        "RULES_TAURI_BAZEL_FULL_CONTEXT": "$(location :full_context_rust)",
+        "RULES_TAURI_BAZEL_UPSTREAM_OUT_DIR": "$(location :upstream_build_script)",
     },
 )
 
