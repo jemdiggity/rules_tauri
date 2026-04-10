@@ -16,11 +16,20 @@ genrule(
     executable = True,
 )
 
+genrule(
+    name = "tauri_full_context_fixture_exec",
+    srcs = ["tauri_full_context_fixture.py"],
+    outs = ["tauri_full_context_fixture"],
+    cmd = "cp $(location tauri_full_context_fixture.py) $@ && chmod 755 $@",
+    executable = True,
+)
+
 exports_files([
     "make_manifest.py",
     "make_plist.py",
     "tauri_assets_manifest.py",
     "tauri_embedded_assets_rust.py",
+    "tauri_full_context_fixture.py",
     "tauri-codegen-bazel-inline-assets.patch",
     "tauri-utils-bazel-debug-assertions.patch",
     "tauri-utils-bazel-permission-paths.patch",
