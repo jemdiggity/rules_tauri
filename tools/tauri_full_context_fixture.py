@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 import argparse
-import json
 from pathlib import Path
 
 
@@ -15,11 +14,32 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def rust_string(value: str) -> str:
+    parts = ['"']
+    for char in value:
+        codepoint = ord(char)
+        if char == '"':
+            parts.append('\\"')
+        elif char == '\\':
+            parts.append('\\\\')
+        elif char == '\n':
+            parts.append('\\n')
+        elif char == '\r':
+            parts.append('\\r')
+        elif char == '\t':
+            parts.append('\\t')
+        elif 0x20 <= codepoint <= 0x7E:
+            parts.append(char)
+        else:
+            parts.append(f'\\u{{{codepoint:x}}}')
+    parts.append('"')
+    return "".join(parts)
+
+
 def main() -> None:
     args = parse_args()
     embedded_assets = Path(args.embedded_assets_rust).read_text(encoding="utf-8").strip()
     runtime_authority = Path(args.runtime_authority_rust).read_text(encoding="utf-8").strip()
-    rust_string = json.dumps
     Path(args.out).write_text(
         (
             "// placeholder full fixture context\n"
