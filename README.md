@@ -14,12 +14,15 @@ Everything after `.app` creation, including code signing, DMG creation, notariza
 
 ## Status
 
-The repository now includes a first working implementation pass:
+The repository now includes a working implementation pass:
 
 - `tauri_bundle_inputs` stages inputs into a deterministic `Contents/...` tree and emits a manifest
 - `tauri_macos_app` wraps that staged tree into an unsigned `.app`
+- `examples/tauri_with_vite` builds a real Vue/Vite + Tauri app with Bazel-managed frontend and Rust build steps
+- the active Bazel example build path no longer depends on `tauri_build::try_build(...)` in its real `build.rs`
+- focused oracle tests compare Bazel-owned compile-time seams against upstream Tauri outputs
 
-This is still early infrastructure. The implementation currently focuses on:
+The implementation currently focuses on:
 
 - resource path normalization
 - sidecar staging
@@ -27,8 +30,9 @@ This is still early infrastructure. The implementation currently focuses on:
 - version sourcing from either an explicit string or a source-of-truth version file
 - macOS custom file injection
 - framework staging
+- Bazel-owned embedded asset generation and context patching under `rules_rust`
 
-It does not yet aim for complete upstream Tauri feature parity.
+It still does not aim for complete upstream Tauri feature parity or full replacement of every upstream compile-time crate.
 
 ## Design
 
