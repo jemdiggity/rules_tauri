@@ -3,38 +3,26 @@ set -eu
 
 repo_root=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
 fixture_dir="$repo_root/test/fixtures/embedded_assets_transform"
+. "$repo_root/test/oracle_embedded_assets_common.sh"
 cd "$repo_root"
 
-if [ "${TAURI_CODEGEN_REPO:-}" = "" ]; then
-    echo "TAURI_CODEGEN_REPO must point to a local Tauri checkout" >&2
-    exit 1
-fi
-tauri_repo="$TAURI_CODEGEN_REPO"
+tauri_repo=$(oracle_embedded_assets_require_tauri_repo)
 
 tmpdir=$(mktemp -d)
 trap 'rm -rf "$tmpdir"' EXIT
 
 expected_crate="$tmpdir/oracle"
-mkdir -p "$expected_crate/src" "$expected_crate/assets"
-cp "$fixture_dir/oracle_build.rs" "$expected_crate/oracle_build.rs"
-cp -R "$fixture_dir/assets/." "$expected_crate/assets/"
-cat >"$expected_crate/Cargo.toml" <<EOF
-[package]
-name = "embedded-assets-transform-oracle"
-version = "0.0.0"
-edition = "2021"
-build = "oracle_build.rs"
-
-[build-dependencies]
-base64 = "0.22"
-serde_json = "1"
-sha2 = "0.10"
-tauri-utils = { path = "$tauri_repo/crates/tauri-utils", features = ["html-manipulation-2"] }
-walkdir = "2"
-EOF
-cat >"$expected_crate/src/lib.rs" <<'EOF'
-pub fn placeholder() {}
-EOF
+oracle_embedded_assets_prepare_crate \
+    "$expected_crate" \
+    "$fixture_dir" \
+    "$fixture_dir/oracle_build.rs" \
+    "embedded-assets-transform-oracle" \
+    "" \
+    "base64 = \"0.22\"
+serde_json = \"1\"
+sha2 = \"0.10\"
+tauri-utils = { path = \"$tauri_repo/crates/tauri-utils\", features = [\"html-manipulation-2\"] }
+walkdir = \"2\""
 
 (
     cd "$expected_crate"
