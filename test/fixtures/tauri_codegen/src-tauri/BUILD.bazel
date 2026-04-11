@@ -10,6 +10,7 @@ filegroup(
     srcs = [
         "Cargo.lock",
         "Cargo.toml",
+        "Info.plist",
         "tauri.conf.json",
         "tauri.macos.conf.json",
         "build.rs",
@@ -35,6 +36,7 @@ filegroup(
 filegroup(
     name = "tauri_build_data",
     srcs = [
+        "Info.plist",
         "tauri.conf.json",
         "tauri.macos.conf.json",
         ":capabilities",

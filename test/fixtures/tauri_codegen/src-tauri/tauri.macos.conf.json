@@ -1,3 +1,8 @@
 {
-  "productName": "tauri-codegen-fixture-macos"
+  "productName": "tauri-codegen-fixture-macos",
+  "bundle": {
+    "macOS": {
+      "bundleVersion": "7.8.9"
+    }
+  }
 }
