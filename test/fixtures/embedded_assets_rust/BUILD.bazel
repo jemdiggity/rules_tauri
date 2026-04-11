@@ -3,11 +3,6 @@ package(default_visibility = ["//visibility:public"])
 load("//test/fixtures/tauri_codegen:defs.bzl", "copy_tree")
 
 filegroup(
-    name = "fixture_srcs",
-    srcs = glob(["assets/**"]) + ["oracle_build.rs", "oracle_Cargo.lock"],
-)
-
-filegroup(
     name = "asset_srcs",
     srcs = glob(["assets/**"]),
 )
