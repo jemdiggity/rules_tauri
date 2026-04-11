@@ -6,8 +6,6 @@ fixture_dir="$repo_root/test/fixtures/embedded_assets_rust"
 . "$repo_root/test/oracle_embedded_assets_common.sh"
 cd "$repo_root"
 
-tauri_repo=$(oracle_embedded_assets_require_tauri_repo)
-
 tmpdir=$(mktemp -d)
 trap 'rm -rf "$tmpdir"' EXIT
 
@@ -17,17 +15,17 @@ oracle_embedded_assets_prepare_crate \
     "$fixture_dir" \
     "$fixture_dir/oracle_compressed_build.rs" \
     "embedded_assets_compression_oracle" \
-    "$fixture_dir/oracle_Cargo.lock" \
+    "$fixture_dir/oracle_compression_Cargo.lock" \
     "quote = \"1\"
 regex = \"1\"
-tauri-codegen = { path = \"$tauri_repo/crates/tauri-codegen\", features = [\"compression\"] }
-tauri-utils = { path = \"$tauri_repo/crates/tauri-utils\" }"
+tauri-codegen = { version = \"=2.5.5\", features = [\"compression\"] }
+tauri-utils = \"=2.8.3\""
 
 bazel build --action_env=PATH //test/fixtures/embedded_assets_rust:embedded_assets_compressed_rust >/dev/null
 
 (
     cd "$expected_crate"
-    CARGO_TARGET_DIR="$tmpdir/target" cargo build --quiet >/dev/null
+    CARGO_TARGET_DIR="$tmpdir/target" cargo build --quiet --locked >/dev/null
 )
 
 expected_rust="$expected_crate/embedded_assets_compressed.oracle.rs"
