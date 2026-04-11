@@ -39,16 +39,30 @@ from compare_context_oracle_utils import (  # noqa: E402
 )
 
 
+def extract_product_name(text: str) -> str:
+    marker = 'product_name : :: core :: option :: Option :: Some ("'
+    start = text.find(marker)
+    if start < 0:
+        raise SystemExit("failed to locate product_name")
+    start += len(marker)
+    end = text.find('" . into ())', start)
+    if end < 0:
+        raise SystemExit("failed to terminate product_name")
+    return text[start:end]
+
+
 oracle_text = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")
 bazel_text = pathlib.Path(sys.argv[2]).read_text(encoding="utf-8")
 
 oracle = (
     normalize_paths(extract_build_block(oracle_text)),
     normalize_paths(extract_config_parent_arg(oracle_text)),
+    extract_product_name(oracle_text),
 )
 bazel = (
     normalize_paths(extract_build_block(bazel_text)),
     normalize_paths(extract_config_parent_arg(bazel_text)),
+    extract_product_name(bazel_text),
 )
 
 if oracle != bazel:
