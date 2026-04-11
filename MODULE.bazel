@@ -98,14 +98,6 @@ crate.annotation(
     repositories = ["example_crates"],
 )
 crate.annotation(
-    crate = "tauri-codegen",
-    patch_args = ["-p1"],
-    patches = [
-        "//tools:tauri-codegen-bazel-inline-assets.patch",
-    ],
-    repositories = ["context_tool_crates"],
-)
-crate.annotation(
     crate = "tauri-utils",
     patch_args = ["-p1"],
     patches = [
