@@ -1,6 +1,6 @@
 use anyhow::{bail, Context, Result};
 use quote::quote;
-use std::ffi::OsString;
+use std::ffi::{OsStr, OsString};
 use std::fs;
 use std::path::{Path, PathBuf};
 use syn::{Expr, ExprArray, ExprReference, File, Item};
@@ -72,9 +72,26 @@ fn main() -> Result<()> {
 
 fn load_config(config_path: &Path, target_triple: &str) -> Result<tauri_utils::config::Config> {
     let target = tauri_utils::platform::Target::from_triple(target_triple);
-    let (config_value, _path) = tauri_utils::config::parse::parse_value(target, config_path)
-        .with_context(|| format!("failed to parse {}", config_path.display()))?;
+    let config_value = if uses_default_config_layout(config_path) {
+        let config_parent = config_path
+            .parent()
+            .context("config path must have parent")?;
+        tauri_utils::config::parse::read_from(target, config_parent)
+            .with_context(|| format!("failed to parse config under {}", config_parent.display()))?
+            .0
+    } else {
+        tauri_utils::config::parse::parse_value(target, config_path)
+            .with_context(|| format!("failed to parse {}", config_path.display()))?
+            .0
+    };
     serde_json::from_value(config_value).context("failed to decode normalized Tauri config")
+}
+
+fn uses_default_config_layout(config_path: &Path) -> bool {
+    matches!(
+        config_path.file_name(),
+        Some(name) if name == OsStr::new("tauri.conf.json")
+    )
 }
 
 fn parse_args() -> Result<Args> {
@@ -186,6 +203,25 @@ fn parse_embedded_assets_expr(path: &Path) -> Result<Expr> {
         )
     }))
     .context("failed to build embedded assets expression")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::uses_default_config_layout;
+    use std::path::Path;
+
+    #[test]
+    fn default_config_layout_is_detected_by_filename() {
+        assert!(uses_default_config_layout(Path::new(
+            "/tmp/app/src-tauri/tauri.conf.json"
+        )));
+        assert!(!uses_default_config_layout(Path::new(
+            "/tmp/app/src-tauri/tauri.macos.conf.json"
+        )));
+        assert!(!uses_default_config_layout(Path::new(
+            "/tmp/app/src-tauri/custom.json"
+        )));
+    }
 }
 
 fn fnv1a64(data: &[u8]) -> u64 {
