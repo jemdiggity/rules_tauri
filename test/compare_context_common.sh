@@ -1,21 +1,29 @@
 #!/bin/sh
 
-. "$(CDPATH= cd -- "$(dirname "$0")" && pwd)/oracle_build_common.sh"
+compare_context_common_dir=$(CDPATH= cd -- "$(dirname "$0")" && pwd)
+. "$compare_context_common_dir/oracle_build_common.sh"
 
-compare_context_prepare_oracle_src_tauri() {
+compare_context_overlay_oracle_manifest() {
     src_tauri_dir=$1
-    oracle_build_prepare_src_tauri "$src_tauri_dir"
+    oracle_fixture_dir=$2
+
+    cp "$oracle_fixture_dir/Cargo.toml" "$src_tauri_dir/Cargo.toml"
+    cp "$oracle_fixture_dir/Cargo.lock" "$src_tauri_dir/Cargo.lock"
+    cp "$oracle_fixture_dir/empty.rs" "$src_tauri_dir/empty.rs"
+    rm -rf "$src_tauri_dir/src"
+    oracle_build_write_build_rs "$src_tauri_dir/build.rs"
 }
 
 compare_context_stage_oracle_workspace() {
     fixture_src_tauri=$1
     fixture_dist=$2
     oracle_root=$3
+    oracle_fixture_dir="$compare_context_common_dir/fixtures/tauri_codegen/oracle_src-tauri"
 
     mkdir -p "$oracle_root"
     cp -R "$fixture_src_tauri" "$oracle_root/src-tauri"
     cp -R "$fixture_dist" "$oracle_root/dist"
-    compare_context_prepare_oracle_src_tauri "$oracle_root/src-tauri"
+    compare_context_overlay_oracle_manifest "$oracle_root/src-tauri" "$oracle_fixture_dir"
 }
 
 compare_context_build_oracle_workspace() {
@@ -24,7 +32,7 @@ compare_context_build_oracle_workspace() {
 
     (
         cd "$oracle_root/src-tauri"
-        CARGO_TARGET_DIR="$target_dir" cargo build --quiet >/dev/null
+        CARGO_TARGET_DIR="$target_dir" cargo build --quiet --locked >/dev/null
     )
 }
 
