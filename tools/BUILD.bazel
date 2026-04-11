@@ -30,7 +30,6 @@ exports_files([
     "tauri_assets_manifest.py",
     "tauri_embedded_assets_rust.py",
     "tauri_full_context_fixture.py",
-    "tauri-codegen-bazel-inline-assets.patch",
     "tauri-utils-bazel-debug-assertions.patch",
     "tauri-utils-bazel-permission-paths.patch",
 ])
