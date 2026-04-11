@@ -11,15 +11,8 @@ tmpdir=$(mktemp -d)
 trap 'rm -rf "$tmpdir"' EXIT
 
 oracle_root="$tmpdir/oracle"
-mkdir -p "$oracle_root"
-cp -R "$fixture_src_tauri" "$oracle_root/src-tauri"
-cp -R "$fixture_dist" "$oracle_root/dist"
-compare_context_prepare_oracle_src_tauri "$oracle_root/src-tauri"
-
-(
-    cd "$oracle_root/src-tauri"
-    CARGO_TARGET_DIR="$tmpdir/target" cargo build --quiet >/dev/null
-)
+compare_context_stage_oracle_workspace "$fixture_src_tauri" "$fixture_dist" "$oracle_root"
+compare_context_build_oracle_workspace "$oracle_root" "$tmpdir/target"
 
 oracle_acl=$(find "$tmpdir/target/debug/build" -path '*/out/acl-manifests.json' -print | head -n1)
 test -n "$oracle_acl"

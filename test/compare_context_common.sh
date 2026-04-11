@@ -7,6 +7,27 @@ compare_context_prepare_oracle_src_tauri() {
     oracle_build_prepare_src_tauri "$src_tauri_dir"
 }
 
+compare_context_stage_oracle_workspace() {
+    fixture_src_tauri=$1
+    fixture_dist=$2
+    oracle_root=$3
+
+    mkdir -p "$oracle_root"
+    cp -R "$fixture_src_tauri" "$oracle_root/src-tauri"
+    cp -R "$fixture_dist" "$oracle_root/dist"
+    compare_context_prepare_oracle_src_tauri "$oracle_root/src-tauri"
+}
+
+compare_context_build_oracle_workspace() {
+    oracle_root=$1
+    target_dir=$2
+
+    (
+        cd "$oracle_root/src-tauri"
+        CARGO_TARGET_DIR="$target_dir" cargo build --quiet >/dev/null
+    )
+}
+
 compare_context_find_unique_context() {
     search_dir=$1
     found_file=$(mktemp)
