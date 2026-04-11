@@ -118,6 +118,7 @@ fn generate_context(
     let pattern = pattern_expr(config, config_parent)?;
     let runtime_authority = runtime_authority_expr(config, target)?;
     let plugin_global_api_scripts = plugin_global_api_scripts_expr(config, config_parent)?;
+    let with_tray_icon_code = tray_icon_code_expr(config, config_parent, target)?;
     let maybe_config_parent_setter = maybe_config_parent_setter(config_parent);
 
     let embedded_assets_expr = quote!(#embedded_assets);
@@ -137,6 +138,7 @@ fn generate_context(
             #plugin_global_api_scripts
         );
 
+        #with_tray_icon_code
         #maybe_config_parent_setter
 
         context
@@ -256,16 +258,7 @@ fn package_info_expr(config: &Config) -> Result<proc_macro2::TokenStream> {
 fn pattern_expr(config: &Config, _config_parent: &Path) -> Result<proc_macro2::TokenStream> {
     let pattern = match &config.app.security.pattern {
         PatternKind::Brownfield => quote!(::tauri::Pattern::Brownfield),
-        #[cfg(not(feature = "isolation"))]
         PatternKind::Isolation { dir: _ } => quote!(::tauri::Pattern::Brownfield),
-        #[cfg(feature = "isolation")]
-        PatternKind::Isolation { dir } => {
-            let dir = config_parent.join(dir);
-            if !dir.exists() {
-                panic!("The isolation application path is set to `{dir:?}` but it does not exist")
-            }
-            unimplemented!("isolation pattern is not used in this fixture")
-        }
     };
     Ok(pattern)
 }
@@ -321,6 +314,21 @@ fn plugin_global_api_scripts_expr(
     }
     let _ = config_parent;
     Ok(quote!(::std::option::Option::None))
+}
+
+fn tray_icon_code_expr(
+    config: &Config,
+    config_parent: &Path,
+    target: Target,
+) -> Result<proc_macro2::TokenStream> {
+    if target.is_desktop() {
+        if let Some(tray) = &config.app.tray_icon {
+            let tray_icon_icon_path = config_parent.join(&tray.icon_path);
+            let icon = CachedIcon::new(&quote!(::tauri), &tray_icon_icon_path)?;
+            return Ok(quote!(context.set_tray_icon(::std::option::Option::Some(#icon));));
+        }
+    }
+    Ok(quote!())
 }
 
 fn cached_window_icon_expr(
