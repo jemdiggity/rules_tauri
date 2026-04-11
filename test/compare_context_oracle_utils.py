@@ -1,7 +1,7 @@
 import re
 
 BUILD_MARKER = "build : :: tauri :: utils :: config :: BuildConfig {"
-CONFIG_PARENT_MARKER = "context . with_config_parent ("
+CONFIG_PARENT_MARKER = "with_config_parent"
 
 
 def extract_balanced(text: str, start: int, open_ch: str, close_ch: str) -> str:
