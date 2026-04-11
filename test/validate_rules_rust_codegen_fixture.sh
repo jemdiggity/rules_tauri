@@ -7,7 +7,7 @@ cd "$repo_root"
 bazel build --action_env=PATH //test/fixtures/tauri_codegen:codegen_probe
 bazel test //test/fixtures/tauri_codegen/src-tauri:build_contract_test
 
-probe_bin="$repo_root/bazel-bin/test/fixtures/tauri_codegen/codegen_probe_bin"
+probe_bin="$repo_root/bazel-bin/test/fixtures/tauri_codegen/src-tauri/codegen_probe"
 dist_dir="$repo_root/bazel-bin/test/fixtures/tauri_codegen/dist"
 generated_assets="$repo_root/bazel-bin/test/fixtures/tauri_codegen/embedded_assets_compressed_rust.rs"
 context_rs="$repo_root/bazel-bin/test/fixtures/tauri_codegen/src-tauri/build_script.out_dir/tauri-build-context.rs"
