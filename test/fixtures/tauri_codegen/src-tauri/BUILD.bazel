@@ -41,12 +41,6 @@ filegroup(
     ],
 )
 
-filegroup(
-    name = "tauri_dep_env",
-    srcs = ["@codegen_crates__tauri-2.10.3//:build_script_build"],
-    output_group = "dep_env",
-)
-
 cargo_build_script(
     name = "build_script",
     srcs = [

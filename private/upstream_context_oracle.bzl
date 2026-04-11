@@ -61,6 +61,48 @@ _tauri_acl_prep_dir = rule(
     },
 )
 
+def _tauri_context_rust_impl(ctx):
+    out = ctx.actions.declare_file(ctx.label.name + ".rs")
+    config = _find_named_file(ctx.files.cargo_srcs, "tauri.conf.json", "cargo_srcs")
+    embedded_assets_rust = _single_output(ctx.attr.embedded_assets_rust, "embedded_assets_rust")
+    acl_out_dir = _single_output(ctx.attr.acl_out_dir, "acl_out_dir")
+    inputs = depset(
+        direct = ctx.files.cargo_srcs + ctx.files.tauri_build_data + [embedded_assets_rust, acl_out_dir] + ctx.files.verification_targets,
+    )
+
+    args = ctx.actions.args()
+    args.add("--config", config.path)
+    args.add("--embedded-assets-rust", embedded_assets_rust.path)
+    args.add("--acl-out-dir", acl_out_dir.path)
+    args.add("--out", out.path)
+
+    ctx.actions.run(
+        executable = ctx.executable._tool,
+        inputs = inputs,
+        outputs = [out],
+        arguments = [args],
+        mnemonic = "TauriContextCodegen",
+        progress_message = "Generating Tauri context for %s" % ctx.label.name,
+    )
+
+    return [DefaultInfo(files = depset([out]))]
+
+_tauri_context_rust = rule(
+    implementation = _tauri_context_rust_impl,
+    attrs = {
+        "acl_out_dir": attr.label(mandatory = True),
+        "cargo_srcs": attr.label(mandatory = True),
+        "embedded_assets_rust": attr.label(mandatory = True),
+        "tauri_build_data": attr.label(mandatory = True),
+        "verification_targets": attr.label_list(allow_files = True),
+        "_tool": attr.label(
+            default = Label("//tools/tauri_context_codegen:tauri_context_codegen_exec"),
+            cfg = "exec",
+            executable = True,
+        ),
+    },
+)
+
 def _is_acl_fixture(rundir):
     return rundir == "test/fixtures/tauri_codegen/src-tauri"
 
@@ -129,24 +171,15 @@ def tauri_upstream_context_oracle(
         },
     )
 
-    native.genrule(
+    acl_source = ":" + acl_prep_name if _is_acl_fixture(rundir) else ":" + upstream_name
+
+    _tauri_context_rust(
         name = full_context_name,
-        srcs = [
-            embedded_assets_rust,
-            ":" + upstream_name,
-        ] + ([":" + acl_compare_name] if _is_acl_fixture(rundir) else []),
-        tools = ["//tools:tauri_full_context_fixture_exec"],
-        outs = ["tauri-build-context.rs"],
-        cmd = """
-set -eu
-$(execpath //tools:tauri_full_context_fixture_exec) \
-  --out "$@" \
-  --embedded-assets-rust "$(location {embedded_assets_rust})" \
-  --upstream-context-rust "$(location :{upstream_name})/tauri-build-context.rs"
-""".format(
-            embedded_assets_rust = embedded_assets_rust,
-            upstream_name = upstream_name,
-        ),
+        acl_out_dir = acl_source,
+        cargo_srcs = cargo_srcs,
+        embedded_assets_rust = embedded_assets_rust,
+        tauri_build_data = tauri_build_data,
+        verification_targets = ([":" + acl_compare_name] if _is_acl_fixture(rundir) else []),
     )
 
     if _is_acl_fixture(rundir):
