@@ -10,7 +10,6 @@ bazel build --action_env=PATH \
   //examples/minimal_macos:bundle_inputs_x86_64 \
   //examples/minimal_macos:app_x86_64 \
   //examples/tauri_with_vite/app/src-tauri:build_script \
-  //examples/tauri_with_vite/app/src-tauri:upstream_build_script \
   //examples/tauri_with_vite:bundle_inputs_arm64 \
   //examples/tauri_with_vite:app_arm64 \
   //examples/tauri_with_vite:bundle_inputs_x86_64 \
@@ -23,9 +22,6 @@ vite_x86_app="$repo_root/bazel-bin/examples/tauri_with_vite/app_x86_64.app"
 build_flags="$repo_root/bazel-bin/examples/tauri_with_vite/app/src-tauri/build_script.flags"
 build_env="$repo_root/bazel-bin/examples/tauri_with_vite/app/src-tauri/build_script.env"
 build_depenv="$repo_root/bazel-bin/examples/tauri_with_vite/app/src-tauri/build_script.depenv"
-upstream_flags="$repo_root/bazel-bin/examples/tauri_with_vite/app/src-tauri/upstream_build_script.flags"
-upstream_env="$repo_root/bazel-bin/examples/tauri_with_vite/app/src-tauri/upstream_build_script.env"
-upstream_depenv="$repo_root/bazel-bin/examples/tauri_with_vite/app/src-tauri/upstream_build_script.depenv"
 
 test -f "$arm64_app/Contents/Info.plist"
 test -f "$arm64_app/Contents/MacOS/minimal-app"
@@ -56,23 +52,15 @@ strings "$vite_x86_app/Contents/MacOS/tauri-with-vite" | grep -q "/assets/index-
 test -f "$build_flags"
 test -f "$build_env"
 test -f "$build_depenv"
-test -f "$upstream_flags"
-test -f "$upstream_env"
-test -f "$upstream_depenv"
-cmp -s "$build_flags" "$upstream_flags"
-cmp -s "$build_env" "$upstream_env"
-python3 - "$build_depenv" "$upstream_depenv" <<'PY'
-import pathlib
-import re
-import sys
-
-def normalize(text: str) -> str:
-    return re.sub(r"build_script\.out_dir", "OUT_DIR", re.sub(r"upstream_build_script\.out_dir", "OUT_DIR", text))
-
-build = normalize(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
-upstream = normalize(pathlib.Path(sys.argv[2]).read_text(encoding="utf-8"))
-if build != upstream:
-    raise SystemExit(f"build script depenv mismatch\nexpected:\n{upstream}\nactual:\n{build}")
-PY
+grep -q "RULES_TAURI_BAZEL_FULL_CONTEXT=" "$build_env"
+grep -q "TAURI_ENV_TARGET_TRIPLE=" "$build_flags"
+grep -q "PERMISSION_FILES_PATH=" "$build_flags"
+grep -q "TAURI_ANDROID_PACKAGE_NAME_APP_NAME=tauri_with_vite" "$build_flags"
+grep -q "TAURI_ANDROID_PACKAGE_NAME_PREFIX=com_example" "$build_flags"
+grep -q "build_script.out_dir/app-manifest/__app__-permission-files" "$build_flags"
+if bazel aquery //examples/tauri_with_vite/app/src-tauri:build_script | grep -q "upstream_build_script"; then
+  echo "expected real example build graph to be helper-free, but upstream_build_script is still present" >&2
+  exit 1
+fi
 
 echo "rules_tauri example validation passed"
