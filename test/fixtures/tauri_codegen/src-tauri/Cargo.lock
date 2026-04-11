@@ -3381,6 +3381,16 @@ dependencies = [
  "serde_json",
  "syn 2.0.117",
  "tauri",
+]
+
+[[package]]
+name = "tauri-codegen-fixture-oracle"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "serde_json",
+ "syn 2.0.117",
  "tauri-build",
 ]
 

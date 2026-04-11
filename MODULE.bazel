@@ -39,7 +39,10 @@ crate = use_extension("@rules_rust//crate_universe:extensions.bzl", "crate")
 crate.from_cargo(
     name = "codegen_crates",
     cargo_lockfile = "//test/fixtures/tauri_codegen/src-tauri:Cargo.lock",
-    manifests = ["//test/fixtures/tauri_codegen/src-tauri:Cargo.toml"],
+    manifests = [
+        "//test/fixtures/tauri_codegen/oracle_src-tauri:Cargo.toml",
+        "//test/fixtures/tauri_codegen/src-tauri:Cargo.toml",
+    ],
     supported_platform_triples = [
         "aarch64-apple-darwin",
         "x86_64-apple-darwin",
