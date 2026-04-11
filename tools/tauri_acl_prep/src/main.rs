@@ -4,6 +4,14 @@ use std::ffi::OsString;
 use std::fs;
 use std::path::Path;
 use std::path::PathBuf;
+use tauri_utils::{
+    acl::{
+        capability::Capability, manifest::Manifest, ACL_MANIFESTS_FILE_NAME, APP_ACL_KEY,
+        CAPABILITIES_FILE_NAME,
+    },
+    config::{self, Config, FrontendDist},
+    platform::Target,
+};
 use toml::Value;
 
 #[cfg(all(target_arch = "aarch64", target_os = "macos"))]
@@ -27,7 +35,8 @@ struct Args {
 fn main() -> Result<()> {
     let args = parse_args()?;
 
-    let invocation_dir = std::env::current_dir().context("failed to determine current directory")?;
+    let invocation_dir =
+        std::env::current_dir().context("failed to determine current directory")?;
     let config = absolutize(&invocation_dir, args.config);
     let dep_env_files = args
         .dep_env_files
@@ -71,18 +80,119 @@ fn main() -> Result<()> {
         .to_string(),
     );
 
-    tauri_build::try_build(
-        tauri_build::Attributes::new().codegen(tauri_build::CodegenContext::new()),
-    )
-        .context("failed to prepare Tauri ACL outputs")?;
+    generate_acl_outputs(&config_dir, &frontend_dist, &out_dir)?;
 
-    for output_name in ["acl-manifests.json", "capabilities.json"] {
+    Ok(())
+}
+
+fn generate_acl_outputs(config_dir: &Path, frontend_dist: &Path, out_dir: &Path) -> Result<()> {
+    let target = Target::from_triple(TARGET_TRIPLE);
+    let (config_value, _config_paths) = config::parse::read_from(target, config_dir)
+        .context("failed to read Tauri configuration")?;
+
+    let mut config = serde_json::from_value::<Config>(config_value)
+        .context("failed to deserialize Tauri configuration")?;
+    config.build.dev_url = None;
+    config.build.frontend_dist = Some(FrontendDist::Directory(frontend_dist.to_path_buf()));
+
+    let permission_map =
+        tauri_utils::acl::build::read_permissions().context("failed to read plugin permissions")?;
+    let mut global_scope_map = tauri_utils::acl::build::read_global_scope_schemas()
+        .context("failed to read global scope schemas")?;
+
+    let mut acl_manifests = std::collections::BTreeMap::new();
+    for (plugin_name, permission_files) in permission_map {
+        let global_scope_schema = global_scope_map.remove(&plugin_name);
+        let manifest = Manifest::new(permission_files, global_scope_schema);
+        acl_manifests.insert(plugin_name, manifest);
+    }
+
+    let capabilities_from_files =
+        tauri_utils::acl::build::parse_capabilities("./capabilities/**/*")
+            .context("failed to parse capabilities")?;
+    let capabilities = tauri_utils::acl::get_capabilities(&config, capabilities_from_files, None)
+        .context("failed to resolve capabilities")?;
+
+    validate_capabilities(&acl_manifests, &capabilities)?;
+
+    write_json(out_dir.join(ACL_MANIFESTS_FILE_NAME), &acl_manifests)?;
+    write_json(out_dir.join(CAPABILITIES_FILE_NAME), &capabilities)?;
+
+    for output_name in [ACL_MANIFESTS_FILE_NAME, CAPABILITIES_FILE_NAME] {
         let output_path = out_dir.join(output_name);
         if !output_path.is_file() {
             bail!("expected {} to exist", output_path.display());
         }
     }
 
+    Ok(())
+}
+
+fn validate_capabilities(
+    acl_manifests: &std::collections::BTreeMap<String, Manifest>,
+    capabilities: &std::collections::BTreeMap<String, Capability>,
+) -> Result<()> {
+    let target = Target::from_triple(&std::env::var("TARGET").unwrap());
+
+    for capability in capabilities.values() {
+        if !capability
+            .platforms
+            .as_ref()
+            .map(|platforms| platforms.contains(&target))
+            .unwrap_or(true)
+        {
+            continue;
+        }
+
+        for permission_entry in &capability.permissions {
+            let permission_id = permission_entry.identifier();
+
+            let key = permission_id.get_prefix().unwrap_or(APP_ACL_KEY);
+            let permission_name = permission_id.get_base();
+
+            let permission_exists = acl_manifests
+                .get(key)
+                .map(|manifest| {
+                    permission_name == "default"
+                        || manifest.permissions.contains_key(permission_name)
+                        || manifest.permission_sets.contains_key(permission_name)
+                })
+                .unwrap_or(false);
+
+            if !permission_exists {
+                let mut available_permissions = Vec::new();
+                for (key, manifest) in acl_manifests {
+                    let prefix = if key == APP_ACL_KEY {
+                        "".to_string()
+                    } else {
+                        format!("{key}:")
+                    };
+                    if manifest.default_permission.is_some() {
+                        available_permissions.push(format!("{prefix}default"));
+                    }
+                    for p in manifest.permissions.keys() {
+                        available_permissions.push(format!("{prefix}{p}"));
+                    }
+                    for p in manifest.permission_sets.keys() {
+                        available_permissions.push(format!("{prefix}{p}"));
+                    }
+                }
+
+                bail!(
+                    "Permission {} not found, expected one of {}",
+                    permission_id.get(),
+                    available_permissions.join(", ")
+                );
+            }
+        }
+    }
+
+    Ok(())
+}
+
+fn write_json<T: serde::Serialize>(path: PathBuf, value: &T) -> Result<()> {
+    let json = serde_json::to_string(value).context("failed to serialize ACL output")?;
+    fs::write(&path, json).with_context(|| format!("failed to write {}", path.display()))?;
     Ok(())
 }
 
@@ -108,7 +218,9 @@ fn parse_args() -> Result<Args> {
             Some("--config") => config = Some(next_path("--config", &mut args)?),
             Some("--dep-env-file") => dep_env_files.push(next_path("--dep-env-file", &mut args)?),
             Some("--dep-out-dir") => dep_out_dirs.push(next_path("--dep-out-dir", &mut args)?),
-            Some("--frontend-dist") => frontend_dist = Some(next_path("--frontend-dist", &mut args)?),
+            Some("--frontend-dist") => {
+                frontend_dist = Some(next_path("--frontend-dist", &mut args)?)
+            }
             Some("--out-dir") => out_dir = Some(next_path("--out-dir", &mut args)?),
             Some(other) => bail!("unknown argument `{other}`"),
             None => bail!("non-utf8 argument is not supported"),
@@ -129,8 +241,8 @@ fn apply_dep_out_dirs(paths: &[PathBuf]) -> Result<()> {
         for entry in fs::read_dir(path)
             .with_context(|| format!("failed to read dependency out dir {}", path.display()))?
         {
-            let entry = entry
-                .with_context(|| format!("failed to read entry from {}", path.display()))?;
+            let entry =
+                entry.with_context(|| format!("failed to read entry from {}", path.display()))?;
             let name = entry.file_name();
             let Some(name) = name.to_str() else {
                 continue;
@@ -208,10 +320,14 @@ fn stage_config_dir(source: &Path, out_dir: &Path) -> Result<PathBuf> {
         fs::remove_dir_all(&staged)
             .with_context(|| format!("failed to clear {}", staged.display()))?;
     }
-    fs::create_dir_all(&staged).with_context(|| format!("failed to create {}", staged.display()))?;
+    fs::create_dir_all(&staged)
+        .with_context(|| format!("failed to create {}", staged.display()))?;
 
     copy_file(&source.join("Cargo.toml"), &staged.join("Cargo.toml"))?;
-    copy_file(&source.join("tauri.conf.json"), &staged.join("tauri.conf.json"))?;
+    copy_file(
+        &source.join("tauri.conf.json"),
+        &staged.join("tauri.conf.json"),
+    )?;
     if source.join("icons").is_dir() {
         copy_tree(&source.join("icons"), &staged.join("icons"))?;
     }
@@ -225,8 +341,11 @@ fn stage_config_dir(source: &Path, out_dir: &Path) -> Result<PathBuf> {
 fn copy_capabilities_dir(source: &Path, destination: &Path) -> Result<()> {
     fs::create_dir_all(destination)
         .with_context(|| format!("failed to create {}", destination.display()))?;
-    for entry in fs::read_dir(source).with_context(|| format!("failed to read {}", source.display()))? {
-        let entry = entry.with_context(|| format!("failed to read entry from {}", source.display()))?;
+    for entry in
+        fs::read_dir(source).with_context(|| format!("failed to read {}", source.display()))?
+    {
+        let entry =
+            entry.with_context(|| format!("failed to read entry from {}", source.display()))?;
         let source_path = entry.path();
         let destination_path = destination.join(entry.file_name());
         if source_path.is_dir() {
@@ -249,8 +368,11 @@ fn copy_capabilities_dir(source: &Path, destination: &Path) -> Result<()> {
 fn copy_tree(source: &Path, destination: &Path) -> Result<()> {
     fs::create_dir_all(destination)
         .with_context(|| format!("failed to create {}", destination.display()))?;
-    for entry in fs::read_dir(source).with_context(|| format!("failed to read {}", source.display()))? {
-        let entry = entry.with_context(|| format!("failed to read entry from {}", source.display()))?;
+    for entry in
+        fs::read_dir(source).with_context(|| format!("failed to read {}", source.display()))?
+    {
+        let entry =
+            entry.with_context(|| format!("failed to read entry from {}", source.display()))?;
         let source_path = entry.path();
         let destination_path = destination.join(entry.file_name());
         if source_path.is_dir() {
@@ -353,12 +475,16 @@ mod tests {
     fn stage_config_dir_stages_cargo_manifest() {
         let source = TempDir::new("tauri_acl_prep_source");
         let out_dir = TempDir::new("tauri_acl_prep_out");
-        fs::write(source.path().join("Cargo.toml"), "[package]\nname = \"fixture\"\nversion = \"0.1.0\"\n")
-            .expect("failed to write Cargo.toml");
+        fs::write(
+            source.path().join("Cargo.toml"),
+            "[package]\nname = \"fixture\"\nversion = \"0.1.0\"\n",
+        )
+        .expect("failed to write Cargo.toml");
         fs::write(source.path().join("tauri.conf.json"), "{}\n")
             .expect("failed to write tauri.conf.json");
 
-        let staged = stage_config_dir(source.path(), out_dir.path()).expect("staging should succeed");
+        let staged =
+            stage_config_dir(source.path(), out_dir.path()).expect("staging should succeed");
 
         assert!(
             staged.join("Cargo.toml").is_file(),
