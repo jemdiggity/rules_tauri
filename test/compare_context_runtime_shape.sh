@@ -80,14 +80,61 @@ def parse_csp_hashes(fragment: str) -> list[tuple[str, str]]:
     )
 
 
+def split_top_level_args(fragment: str) -> list[str]:
+    parts = []
+    start = 0
+    paren_depth = 0
+    bracket_depth = 0
+    brace_depth = 0
+    in_string = False
+    escaped = False
+
+    for idx, ch in enumerate(fragment):
+        if in_string:
+            if escaped:
+                escaped = False
+            elif ch == "\\":
+                escaped = True
+            elif ch == '"':
+                in_string = False
+            continue
+
+        if ch == '"':
+            in_string = True
+        elif ch == "(":
+            paren_depth += 1
+        elif ch == ")":
+            paren_depth -= 1
+        elif ch == "[":
+            bracket_depth += 1
+        elif ch == "]":
+            bracket_depth -= 1
+        elif ch == "{":
+            brace_depth += 1
+        elif ch == "}":
+            brace_depth -= 1
+        elif ch == "," and paren_depth == 0 and bracket_depth == 0 and brace_depth == 0:
+            parts.append(fragment[start:idx].strip())
+            start = idx + 1
+
+    tail = fragment[start:].strip()
+    if tail:
+        parts.append(tail)
+    return parts
+
+
 def normalize_assets(fragment: str) -> tuple[
     list[str], list[tuple[str, str]], list[tuple[str, list[tuple[str, str]]]]
 ]:
-    asset_keys = sorted(re.findall(r'"(/[^"]+)"\s*=>\s*(?:b"|{)', fragment))
-    global_hashes = parse_csp_hashes(fragment)
+    args = split_top_level_args(fragment[1:-1])
+    if len(args) != 3:
+        raise SystemExit(f"expected 3 EmbeddedAssets::new args, got {len(args)}")
+
+    asset_keys = sorted(re.findall(r'"(/[^"]+)"\s*=>', args[0]))
+    global_hashes = parse_csp_hashes(args[1])
 
     html_hash_entries = []
-    for path, hashes in re.findall(r'"(/[^"]+)"\s*=>\s*&\s*(\[[^\]]*\])', fragment, re.S):
+    for path, hashes in re.findall(r'"(/[^"]+)"\s*=>\s*&\s*(\[[^\]]*\])', args[2], re.S):
         html_hash_entries.append((path, parse_csp_hashes(hashes)))
 
     return asset_keys, global_hashes, sorted(html_hash_entries)
