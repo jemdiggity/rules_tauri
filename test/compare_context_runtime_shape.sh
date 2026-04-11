@@ -71,10 +71,12 @@ def normalize_runtime(fragment: str) -> str:
     return fragment
 
 
-def normalize_assets(fragment: str) -> str:
+def normalize_assets(fragment: str) -> tuple[list[str], list[str]]:
     if "EmbeddedAssets :: new (" not in fragment:
         raise SystemExit("failed to locate EmbeddedAssets::new call")
-    return "inner({$EMBEDDED_ASSETS})"
+    asset_keys = sorted(re.findall(r'"(/[^"]+)"\s*=>', fragment))
+    csp_hashes = sorted(re.findall(r"'sha256-[^']+'", fragment))
+    return asset_keys, csp_hashes
 
 
 oracle_text = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")
