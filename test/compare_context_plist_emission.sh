@@ -15,7 +15,7 @@ oracle_root="$tmpdir/oracle"
 mkdir -p "$oracle_root"
 cp -R "$fixture_src_tauri" "$oracle_root/src-tauri"
 cp -R "$fixture_dist" "$oracle_root/dist"
-compare_context_write_oracle_build_rs "$oracle_root/src-tauri/build.rs"
+compare_context_prepare_oracle_src_tauri "$oracle_root/src-tauri"
 
 (
     cd "$oracle_root/src-tauri"
