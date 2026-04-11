@@ -5,15 +5,7 @@ repo_root=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
 fixture_src_tauri="$repo_root/test/fixtures/tauri_codegen/src-tauri"
 fixture_dist="$repo_root/test/fixtures/tauri_codegen/dist"
 cd "$repo_root"
-
-write_oracle_build_rs() {
-    cat >"$1" <<'EOF'
-fn main() {
-    let attributes = tauri_build::Attributes::new().codegen(tauri_build::CodegenContext::new());
-    tauri_build::try_build(attributes).expect("failed to generate Tauri build context");
-}
-EOF
-}
+. "$repo_root/test/compare_context_common.sh"
 
 tmpdir=$(mktemp -d)
 trap 'rm -rf "$tmpdir"' EXIT
@@ -22,7 +14,7 @@ oracle_root="$tmpdir/oracle"
 mkdir -p "$oracle_root"
 cp -R "$fixture_src_tauri" "$oracle_root/src-tauri"
 cp -R "$fixture_dist" "$oracle_root/dist"
-write_oracle_build_rs "$oracle_root/src-tauri/build.rs"
+compare_context_prepare_oracle_src_tauri "$oracle_root/src-tauri"
 
 (
     cd "$oracle_root/src-tauri"
