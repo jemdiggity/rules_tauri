@@ -3,6 +3,7 @@ package(default_visibility = ["//visibility:public"])
 load("@codegen_crates//:defs.bzl", "aliases", "all_crate_deps")
 load("@rules_rust//cargo:defs.bzl", "cargo_build_script")
 load("@rules_rust//rust:defs.bzl", "rust_binary", "rust_library", "rust_test")
+load("//private:upstream_context_oracle.bzl", "tauri_upstream_context_oracle")
 
 filegroup(
     name = "cargo_srcs",
@@ -38,6 +39,12 @@ filegroup(
         ":icons",
         "//test/fixtures/tauri_codegen:dist",
     ],
+)
+
+filegroup(
+    name = "tauri_dep_env",
+    srcs = ["@codegen_crates__tauri-2.10.3//:build_script_build"],
+    output_group = "dep_env",
 )
 
 cargo_build_script(
@@ -79,53 +86,25 @@ cargo_build_script(
     },
 )
 
-cargo_build_script(
-    name = "upstream_build_script",
-    srcs = [
-        "upstream_build.rs",
-        "build_contract.rs",
-    ],
-    crate_root = "upstream_build.rs",
-    crate_name = "upstream_build_script_build",
-    edition = "2021",
+tauri_upstream_context_oracle(
+    upstream_name = "upstream_build_script",
+    full_context_name = "full_context_rust",
+    cargo_srcs = ":cargo_srcs",
+    tauri_build_data = ":tauri_build_data",
+    build_script_src = "upstream_build.rs",
+    build_contract_src = "build_contract.rs",
     pkg_name = "tauri-codegen-fixture",
     version = "0.1.0",
     rundir = "test/fixtures/tauri_codegen/src-tauri",
     aliases = aliases(build = True),
-    deps = all_crate_deps(build = True),
+    build_deps = all_crate_deps(build = True),
+    build_proc_macro_deps = all_crate_deps(build_proc_macro = True),
     link_deps = ["@codegen_crates//:tauri"],
-    proc_macro_deps = all_crate_deps(build_proc_macro = True),
-    data = [
-        ":cargo_srcs",
-        ":tauri_build_data",
-        "//test/fixtures/tauri_codegen:dist",
+    frontend_dist = "//test/fixtures/tauri_codegen:dist",
+    embedded_assets_rust = "//test/fixtures/tauri_codegen:embedded_assets_compressed_rust",
+    acl_dep_env_targets = [
+        "@codegen_crates__tauri-2.10.3//:build_script_build",
     ],
-    compile_data = [
-        ":cargo_srcs",
-        ":tauri_build_data",
-        "//test/fixtures/tauri_codegen:dist",
-    ],
-    build_script_env = {
-        "DEP_TAURI_DEV": "false",
-        "RULES_TAURI_FRONTEND_DIST": "$(location //test/fixtures/tauri_codegen:dist)",
-    },
-)
-
-genrule(
-    name = "full_context_rust",
-    srcs = [
-        "//test/fixtures/tauri_codegen:embedded_assets_compressed_rust",
-        ":upstream_build_script",
-    ],
-    tools = ["//tools:tauri_full_context_fixture_exec"],
-    outs = ["tauri-build-context.rs"],
-    cmd = """
-set -eu
-$(execpath //tools:tauri_full_context_fixture_exec) \
-  --out "$@" \
-  --embedded-assets-rust "$(location //test/fixtures/tauri_codegen:embedded_assets_compressed_rust)" \
-  --upstream-context-rust "$(location :upstream_build_script)/tauri-build-context.rs"
-""",
 )
 
 rust_library(

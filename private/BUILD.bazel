@@ -6,4 +6,5 @@ exports_files([
     "manifest.bzl",
     "paths.bzl",
     "plist.bzl",
+    "upstream_context_oracle.bzl",
 ])
