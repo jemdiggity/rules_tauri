@@ -110,6 +110,38 @@ fn extract_quoted_name_after(text: &str, marker: &str) -> Option<String> {
     Some(text[start..start + end].to_string())
 }
 
+fn first_icon_path<F>(predicate: F) -> PathBuf
+where
+    F: Fn(&str) -> bool,
+{
+    let config: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string("tauri.conf.json").expect("failed to read tauri.conf.json"))
+            .expect("failed to parse tauri.conf.json");
+    let icons = config["bundle"]["icon"]
+        .as_array()
+        .expect("tauri.conf.json must contain bundle.icon");
+    let icon = icons
+        .iter()
+        .filter_map(|value| value.as_str())
+        .find(|path| predicate(path))
+        .expect("failed to locate matching icon in tauri.conf.json");
+    PathBuf::from(icon)
+}
+
+fn decode_png_to_rgba(path: &Path) -> Vec<u8> {
+    let data = fs::read(path)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", path.display()));
+    let decoder = png::Decoder::new(std::io::Cursor::new(data));
+    let mut reader = decoder
+        .read_info()
+        .unwrap_or_else(|error| panic!("failed to decode {}: {error}", path.display()));
+    let mut rgba = Vec::with_capacity(reader.output_buffer_size());
+    while let Ok(Some(row)) = reader.next_row() {
+        rgba.extend_from_slice(row.data());
+    }
+    rgba
+}
+
 fn ensure_generated_support_files(out_dir: &Path, context_path: &Path) {
     let context = fs::read_to_string(context_path).unwrap_or_else(|error| {
         panic!(
@@ -154,7 +186,8 @@ fn ensure_generated_support_files(out_dir: &Path, context_path: &Path) {
     let include_bytes_marker =
         "include_bytes ! (:: std :: concat ! (:: std :: env ! (\"OUT_DIR\") , \"/\" , \"";
     let mut search = context.as_str();
-    let mut missing_targets = Vec::new();
+    let mut missing_raw_targets = Vec::new();
+    let mut missing_rgba_targets = Vec::new();
     while let Some(offset) = search.find(include_bytes_marker) {
         let remainder = &search[offset + include_bytes_marker.len()..];
         let Some(end) = remainder.find('"') else {
@@ -162,20 +195,32 @@ fn ensure_generated_support_files(out_dir: &Path, context_path: &Path) {
         };
         let candidate = &remainder[..end];
         if !out_dir.join(candidate).exists() {
-            missing_targets.push(candidate.to_string());
+            if remainder[end..].contains(". to_vec ())") {
+                missing_raw_targets.push(candidate.to_string());
+            } else {
+                missing_rgba_targets.push(candidate.to_string());
+            }
         }
         search = &remainder[end..];
     }
 
-    for file_name in missing_targets {
-        let icon_path = PathBuf::from("icons/icon.icns");
+    let raw_icon_path = first_icon_path(|path| path.ends_with(".icns"));
+    for file_name in missing_raw_targets {
         let destination = out_dir.join(file_name);
-        fs::copy(&icon_path, &destination).unwrap_or_else(|error| {
+        fs::copy(&raw_icon_path, &destination).unwrap_or_else(|error| {
             panic!(
                 "failed to copy {} to {}: {error}",
-                icon_path.display(),
+                raw_icon_path.display(),
                 destination.display()
             )
+        });
+    }
+
+    let rgba_icon = decode_png_to_rgba(&first_icon_path(|path| path.ends_with(".png")));
+    for file_name in missing_rgba_targets {
+        let destination = out_dir.join(file_name);
+        fs::write(&destination, &rgba_icon).unwrap_or_else(|error| {
+            panic!("failed to write {}: {error}", destination.display())
         });
     }
 }

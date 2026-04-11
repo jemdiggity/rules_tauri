@@ -328,6 +328,19 @@ fn stage_config_dir(source: &Path, out_dir: &Path) -> Result<PathBuf> {
         &source.join("tauri.conf.json"),
         &staged.join("tauri.conf.json"),
     )?;
+    for entry in fs::read_dir(source).with_context(|| format!("failed to read {}", source.display()))? {
+        let entry = entry.with_context(|| format!("failed to read entry from {}", source.display()))?;
+        let source_path = entry.path();
+        let Some(name) = source_path.file_name().and_then(|value| value.to_str()) else {
+            continue;
+        };
+        if !source_path.is_file() || name == "tauri.conf.json" {
+            continue;
+        }
+        if name.starts_with("tauri.") && name.ends_with(".conf.json") {
+            copy_file(&source_path, &staged.join(name))?;
+        }
+    }
     if source.join("icons").is_dir() {
         copy_tree(&source.join("icons"), &staged.join("icons"))?;
     }
