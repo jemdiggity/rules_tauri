@@ -13,7 +13,6 @@ filegroup(
         "tauri.conf.json",
         "build.rs",
         "build_contract.rs",
-        "upstream_build.rs",
     ] + glob([
         "capabilities/**",
         "icons/**",
@@ -60,6 +59,10 @@ tauri_upstream_context_oracle(
     ],
     frontend_dist = "//examples/tauri_with_vite:frontend_dist",
     embedded_assets_rust = "//examples/tauri_with_vite:embedded_assets_rust",
+    acl_dep_env_targets = [
+        "@example_crates__tauri-2.10.3//:build_script_build",
+        "@example_crates__tauri-plugin-opener-2.5.3//:build_script_build",
+    ],
 )
 
 cargo_build_script(
@@ -85,7 +88,7 @@ cargo_build_script(
         ":cargo_srcs",
         ":tauri_build_data",
         ":full_context_rust",
-        ":upstream_build_script",
+        ":_upstream_build_script_acl_prep",
         "//examples/tauri_with_vite:frontend_dist",
         "//examples/tauri_with_vite:embedded_assets_rust",
     ],
@@ -93,14 +96,14 @@ cargo_build_script(
         ":cargo_srcs",
         ":tauri_build_data",
         ":full_context_rust",
-        ":upstream_build_script",
+        ":_upstream_build_script_acl_prep",
         "//examples/tauri_with_vite:frontend_dist",
         "//examples/tauri_with_vite:embedded_assets_rust",
     ],
     build_script_env = {
         "DEP_TAURI_DEV": "false",
+        "RULES_TAURI_BAZEL_ACL_OUT_DIR": "$(location :_upstream_build_script_acl_prep)",
         "RULES_TAURI_BAZEL_FULL_CONTEXT": "$(location :full_context_rust)",
-        "RULES_TAURI_BAZEL_UPSTREAM_OUT_DIR": "$(location :upstream_build_script)",
     },
 )
 

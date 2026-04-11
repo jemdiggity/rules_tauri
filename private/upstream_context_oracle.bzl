@@ -22,14 +22,17 @@ def _tauri_acl_prep_dir_impl(ctx):
     out = ctx.actions.declare_directory(ctx.label.name + ".out_dir")
     config = _find_named_file(ctx.files.cargo_srcs, "tauri.conf.json", "cargo_srcs")
     frontend_dist = _single_output(ctx.attr.frontend_dist, "frontend_dist")
-    dep_env_files = _target_files(ctx.attr.dep_env_targets)
-    dep_out_dirs = [file for file in dep_env_files if file.is_directory]
+    dep_target_files = _target_files(ctx.attr.dep_env_targets)
+    dep_env_files = [file for file in dep_target_files if file.basename.endswith(".depenv")]
+    dep_out_dirs = [file for file in dep_target_files if file.is_directory]
     inputs = depset(
-        direct = ctx.files.cargo_srcs + ctx.files.tauri_build_data + [frontend_dist] + dep_env_files,
+        direct = ctx.files.cargo_srcs + ctx.files.tauri_build_data + [frontend_dist] + dep_target_files,
     )
 
     args = ctx.actions.args()
     args.add("--config", config.path)
+    for dep_env_file in dep_env_files:
+        args.add("--dep-env-file", dep_env_file.path)
     for dep_out_dir in dep_out_dirs:
         args.add("--dep-out-dir", dep_out_dir.path)
     args.add("--frontend-dist", frontend_dist.path)
@@ -130,48 +133,48 @@ def tauri_upstream_context_oracle(
     acl_prep_name = "_" + upstream_name + "_acl_prep"
     acl_compare_name = "_" + upstream_name + "_acl_prep_matches_oracle"
 
-    if _is_acl_fixture(rundir):
-        _tauri_acl_prep_dir(
-            name = acl_prep_name,
-            cargo_srcs = cargo_srcs,
-            dep_env_targets = acl_dep_env_targets,
-            frontend_dist = frontend_dist,
-            tauri_build_data = tauri_build_data,
-        )
-
-    cargo_build_script(
-        name = upstream_name,
-        srcs = [
-            build_script_src,
-            build_contract_src,
-        ],
-        crate_root = build_script_src,
-        crate_name = upstream_name + "_build",
-        edition = "2021",
-        pkg_name = pkg_name,
-        version = version,
-        rundir = rundir,
-        aliases = aliases,
-        deps = build_deps,
-        link_deps = link_deps,
-        proc_macro_deps = build_proc_macro_deps,
-        data = [
-            cargo_srcs,
-            tauri_build_data,
-            frontend_dist,
-        ],
-        compile_data = [
-            cargo_srcs,
-            tauri_build_data,
-            frontend_dist,
-        ],
-        build_script_env = {
-            "DEP_TAURI_DEV": "false",
-            "RULES_TAURI_FRONTEND_DIST": "$(location %s)" % frontend_dist,
-        },
+    _tauri_acl_prep_dir(
+        name = acl_prep_name,
+        cargo_srcs = cargo_srcs,
+        dep_env_targets = acl_dep_env_targets,
+        frontend_dist = frontend_dist,
+        tauri_build_data = tauri_build_data,
     )
 
-    acl_source = ":" + acl_prep_name if _is_acl_fixture(rundir) else ":" + upstream_name
+    if _is_acl_fixture(rundir):
+        cargo_build_script(
+            name = upstream_name,
+            srcs = [
+                build_script_src,
+                build_contract_src,
+            ],
+            crate_root = build_script_src,
+            crate_name = upstream_name + "_build",
+            edition = "2021",
+            pkg_name = pkg_name,
+            version = version,
+            rundir = rundir,
+            aliases = aliases,
+            deps = build_deps,
+            link_deps = link_deps,
+            proc_macro_deps = build_proc_macro_deps,
+            data = [
+                cargo_srcs,
+                tauri_build_data,
+                frontend_dist,
+            ],
+            compile_data = [
+                cargo_srcs,
+                tauri_build_data,
+                frontend_dist,
+            ],
+            build_script_env = {
+                "DEP_TAURI_DEV": "false",
+                "RULES_TAURI_FRONTEND_DIST": "$(location %s)" % frontend_dist,
+            },
+        )
+
+    acl_source = ":" + acl_prep_name
 
     _tauri_context_rust(
         name = full_context_name,

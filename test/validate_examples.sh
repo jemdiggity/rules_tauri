@@ -52,14 +52,19 @@ strings "$vite_x86_app/Contents/MacOS/tauri-with-vite" | grep -q "/assets/index-
 test -f "$build_flags"
 test -f "$build_env"
 test -f "$build_depenv"
-grep -q "RULES_TAURI_BAZEL_FULL_CONTEXT=" "$build_env"
-grep -q "TAURI_ENV_TARGET_TRIPLE=" "$build_flags"
-grep -q "PERMISSION_FILES_PATH=" "$build_flags"
-grep -q "TAURI_ANDROID_PACKAGE_NAME_APP_NAME=tauri_with_vite" "$build_flags"
-grep -q "TAURI_ANDROID_PACKAGE_NAME_PREFIX=com_example" "$build_flags"
-grep -q "build_script.out_dir/app-manifest/__app__-permission-files" "$build_flags"
-if bazel aquery //examples/tauri_with_vite/app/src-tauri:build_script | grep -q "upstream_build_script"; then
-  echo "expected real example build graph to be helper-free, but upstream_build_script is still present" >&2
+grep -q "TAURI_ANDROID_PACKAGE_NAME_APP_NAME=tauri_with_vite" "$build_env"
+grep -q "TAURI_ANDROID_PACKAGE_NAME_PREFIX=com_jeremyhale" "$build_env"
+grep -q "TAURI_ENV_TARGET_TRIPLE=aarch64-apple-darwin" "$build_env"
+grep -q -- "--cfg=desktop" "$build_flags"
+grep -q -- "--cfg=dev" "$build_flags"
+grep -q "build_script.out_dir/app-manifest/__app__-permission-files" "$build_depenv"
+aquery_output=$(mktemp)
+trap 'rm -f "$aquery_output"' EXIT
+bazel aquery //examples/tauri_with_vite/app/src-tauri:build_script >"$aquery_output"
+grep -q "RULES_TAURI_BAZEL_FULL_CONTEXT" "$aquery_output"
+grep -q "RULES_TAURI_BAZEL_ACL_OUT_DIR" "$aquery_output"
+if grep -Eq "upstream_build_script\\.out_dir|RULES_TAURI_BAZEL_UPSTREAM_OUT_DIR" "$aquery_output"; then
+  echo "expected real example build graph to be helper-free, but upstream helper wiring is still present" >&2
   exit 1
 fi
 

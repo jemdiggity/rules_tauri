@@ -38,17 +38,17 @@ fn copy_tree(source: &Path, destination: &Path) {
     });
 }
 
-fn copy_upstream_out_dir(upstream_out_dir: &Path, out_dir: &Path) {
-    for entry in fs::read_dir(upstream_out_dir).unwrap_or_else(|error| {
+fn copy_bazel_out_dir(bazel_out_dir: &Path, out_dir: &Path) {
+    for entry in fs::read_dir(bazel_out_dir).unwrap_or_else(|error| {
         panic!(
-            "failed to read upstream out dir {}: {error}",
-            upstream_out_dir.display()
+            "failed to read Bazel out dir {}: {error}",
+            bazel_out_dir.display()
         )
     }) {
         let entry = entry.unwrap_or_else(|error| {
             panic!(
-                "failed to read entry from upstream out dir {}: {error}",
-                upstream_out_dir.display()
+                "failed to read entry from Bazel out dir {}: {error}",
+                bazel_out_dir.display()
             )
         });
         let path = entry.path();
@@ -104,6 +104,83 @@ fn emit_upstream_contract(out_dir: &Path) {
     );
 }
 
+fn extract_quoted_name_after(text: &str, marker: &str) -> Option<String> {
+    let start = text.find(marker)? + marker.len();
+    let end = text[start..].find('"')?;
+    Some(text[start..start + end].to_string())
+}
+
+fn ensure_generated_support_files(out_dir: &Path, context_path: &Path) {
+    let context = fs::read_to_string(context_path).unwrap_or_else(|error| {
+        panic!(
+            "failed to read generated context {}: {error}",
+            context_path.display()
+        )
+    });
+
+    let plist_marker =
+        "embed_info_plist ! (:: std :: concat ! (:: std :: env ! (\"OUT_DIR\") , \"/\" , \"";
+    if let Some(file_name) = extract_quoted_name_after(&context, plist_marker) {
+        let path = out_dir.join(file_name);
+        if !path.exists() {
+            let package_name = std::env::var("CARGO_PKG_NAME").expect("missing CARGO_PKG_NAME");
+            let package_version =
+                std::env::var("CARGO_PKG_VERSION").expect("missing CARGO_PKG_VERSION");
+            let plist = format!(
+                concat!(
+                    "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n",
+                    "<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" ",
+                    "\"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n",
+                    "<plist version=\"1.0\">\n",
+                    "<dict>\n",
+                    "\t<key>CFBundleName</key>\n",
+                    "\t<string>{}</string>\n",
+                    "\t<key>CFBundleShortVersionString</key>\n",
+                    "\t<string>{}</string>\n",
+                    "\t<key>CFBundleVersion</key>\n",
+                    "\t<string>{}</string>\n",
+                    "</dict>\n",
+                    "</plist>\n"
+                ),
+                package_name,
+                package_version,
+                package_version,
+            );
+            fs::write(&path, plist)
+                .unwrap_or_else(|error| panic!("failed to write {}: {error}", path.display()));
+        }
+    }
+
+    let include_bytes_marker =
+        "include_bytes ! (:: std :: concat ! (:: std :: env ! (\"OUT_DIR\") , \"/\" , \"";
+    let mut search = context.as_str();
+    let mut icon_target = None;
+    while let Some(offset) = search.find(include_bytes_marker) {
+        let remainder = &search[offset + include_bytes_marker.len()..];
+        let Some(end) = remainder.find('"') else {
+            break;
+        };
+        let candidate = &remainder[..end];
+        if !out_dir.join(candidate).exists() {
+            icon_target = Some(candidate.to_string());
+            break;
+        }
+        search = &remainder[end..];
+    }
+
+    if let Some(file_name) = icon_target {
+        let icon_path = PathBuf::from("icons/icon.icns");
+        let destination = out_dir.join(file_name);
+        fs::copy(&icon_path, &destination).unwrap_or_else(|error| {
+            panic!(
+                "failed to copy {} to {}: {error}",
+                icon_path.display(),
+                destination.display()
+            )
+        });
+    }
+}
+
 fn main() {
     if let Ok(manifest_dir) = std::env::var("CARGO_MANIFEST_DIR") {
         std::env::set_current_dir(&manifest_dir)
@@ -126,12 +203,12 @@ fn main() {
         std::env::var("RULES_TAURI_BAZEL_FULL_CONTEXT").expect("missing RULES_TAURI_BAZEL_FULL_CONTEXT");
     println!("cargo:rerun-if-env-changed=RULES_TAURI_BAZEL_FULL_CONTEXT");
     println!("cargo:rerun-if-changed={full_context_path}");
-    let upstream_out_dir = PathBuf::from(
-        std::env::var("RULES_TAURI_BAZEL_UPSTREAM_OUT_DIR")
-            .expect("missing RULES_TAURI_BAZEL_UPSTREAM_OUT_DIR"),
+    let acl_out_dir = PathBuf::from(
+        std::env::var("RULES_TAURI_BAZEL_ACL_OUT_DIR")
+            .expect("missing RULES_TAURI_BAZEL_ACL_OUT_DIR"),
     );
-    println!("cargo:rerun-if-env-changed=RULES_TAURI_BAZEL_UPSTREAM_OUT_DIR");
-    println!("cargo:rerun-if-changed={}", upstream_out_dir.display());
+    println!("cargo:rerun-if-env-changed=RULES_TAURI_BAZEL_ACL_OUT_DIR");
+    println!("cargo:rerun-if-changed={}", acl_out_dir.display());
 
     let out_dir = PathBuf::from(std::env::var("OUT_DIR").expect("missing OUT_DIR"));
     let out_path = out_dir.join("tauri-build-context.rs");
@@ -143,6 +220,7 @@ fn main() {
         )
     });
 
-    copy_upstream_out_dir(&upstream_out_dir, &out_dir);
+    copy_bazel_out_dir(&acl_out_dir, &out_dir);
+    ensure_generated_support_files(&out_dir, &out_path);
     emit_upstream_contract(&out_dir);
 }

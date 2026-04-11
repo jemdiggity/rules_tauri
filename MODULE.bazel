@@ -148,5 +148,7 @@ use_repo(
     "codegen_crates",
     "codegen_crates__tauri-2.10.3",
     "example_crates",
+    "example_crates__tauri-2.10.3",
+    "example_crates__tauri-plugin-opener-2.5.3",
     "tool_crates",
 )
