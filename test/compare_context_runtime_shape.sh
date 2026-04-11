@@ -56,11 +56,11 @@ def extract_runtime_authority(text: str) -> str:
     return extract_balanced(text, brace_start, "{", "}")
 
 
-def extract_embedded_assets(text: str) -> str:
-    marker = "inner ("
-    start = text.rfind(marker)
+def extract_embedded_assets_call(text: str) -> str:
+    marker = "EmbeddedAssets :: new ("
+    start = text.find(marker)
     if start < 0:
-        raise SystemExit("failed to locate embedded assets expression")
+        raise SystemExit("failed to locate EmbeddedAssets::new call")
     paren_start = text.find("(", start)
     return extract_balanced(text, paren_start, "(", ")")
 
@@ -71,12 +71,26 @@ def normalize_runtime(fragment: str) -> str:
     return fragment
 
 
-def normalize_assets(fragment: str) -> tuple[list[str], list[str]]:
-    if "EmbeddedAssets :: new (" not in fragment:
-        raise SystemExit("failed to locate EmbeddedAssets::new call")
-    asset_keys = sorted(re.findall(r'"(/[^"]+)"\s*=>', fragment))
-    csp_hashes = sorted(re.findall(r"'sha256-[^']+'", fragment))
-    return asset_keys, csp_hashes
+def parse_csp_hashes(fragment: str) -> list[tuple[str, str]]:
+    return sorted(
+        re.findall(
+            r"CspHash\s*::\s*(Script|Style)\s*\(\s*(\"'sha256-[^\"]+\")\s*\)",
+            fragment,
+        )
+    )
+
+
+def normalize_assets(fragment: str) -> tuple[
+    list[str], list[tuple[str, str]], list[tuple[str, list[tuple[str, str]]]]
+]:
+    asset_keys = sorted(re.findall(r'"(/[^"]+)"\s*=>\s*(?:b"|{)', fragment))
+    global_hashes = parse_csp_hashes(fragment)
+
+    html_hash_entries = []
+    for path, hashes in re.findall(r'"(/[^"]+)"\s*=>\s*&\s*(\[[^\]]*\])', fragment, re.S):
+        html_hash_entries.append((path, parse_csp_hashes(hashes)))
+
+    return asset_keys, global_hashes, sorted(html_hash_entries)
 
 
 oracle_text = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")
@@ -84,11 +98,11 @@ bazel_text = pathlib.Path(sys.argv[2]).read_text(encoding="utf-8")
 
 oracle = (
     normalize_runtime(extract_runtime_authority(oracle_text)),
-    normalize_assets(extract_embedded_assets(oracle_text)),
+    normalize_assets(extract_embedded_assets_call(oracle_text)),
 )
 bazel = (
     normalize_runtime(extract_runtime_authority(bazel_text)),
-    normalize_assets(extract_embedded_assets(bazel_text)),
+    normalize_assets(extract_embedded_assets_call(bazel_text)),
 )
 
 if oracle != bazel:
