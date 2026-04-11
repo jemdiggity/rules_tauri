@@ -3,37 +3,23 @@ set -eu
 
 repo_root=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
 fixture_dir="$repo_root/test/fixtures/embedded_assets_rust"
+. "$repo_root/test/oracle_embedded_assets_common.sh"
 cd "$repo_root"
 
-if [ "${TAURI_CODEGEN_REPO:-}" = "" ]; then
-    echo "TAURI_CODEGEN_REPO must point to a local Tauri checkout" >&2
-    exit 1
-fi
-tauri_repo="$TAURI_CODEGEN_REPO"
+tauri_repo=$(oracle_embedded_assets_require_tauri_repo)
 
 tmpdir=$(mktemp -d)
 trap 'rm -rf "$tmpdir"' EXIT
 
 expected_crate="$tmpdir/oracle"
-mkdir -p "$expected_crate/src"
-cp "$fixture_dir/oracle_build.rs" "$expected_crate/oracle_build.rs"
-cp "$fixture_dir/oracle_Cargo.lock" "$expected_crate/Cargo.lock"
-mkdir -p "$expected_crate/assets"
-cp -R "$fixture_dir/assets/." "$expected_crate/assets/"
-cat >"$expected_crate/Cargo.toml" <<EOF
-[package]
-name = "embedded_assets_oracle"
-version = "0.0.0"
-edition = "2021"
-build = "oracle_build.rs"
-
-[build-dependencies]
-tauri-codegen = { path = "$tauri_repo/crates/tauri-codegen" }
-tauri-utils = { path = "$tauri_repo/crates/tauri-utils" }
-EOF
-cat >"$expected_crate/src/lib.rs" <<'EOF'
-pub fn placeholder() {}
-EOF
+oracle_embedded_assets_prepare_crate \
+    "$expected_crate" \
+    "$fixture_dir" \
+    "$fixture_dir/oracle_build.rs" \
+    "embedded_assets_oracle" \
+    "$fixture_dir/oracle_Cargo.lock" \
+    "tauri-codegen = { path = \"$tauri_repo/crates/tauri-codegen\" }
+tauri-utils = { path = \"$tauri_repo/crates/tauri-utils\" }"
 
 bazel build --action_env=PATH //test/fixtures/embedded_assets_rust:embedded_assets_rust >/dev/null
 
