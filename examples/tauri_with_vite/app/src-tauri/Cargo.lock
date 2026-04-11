@@ -3865,6 +3865,7 @@ dependencies = [
 name = "tauri-with-vite"
 version = "0.1.0"
 dependencies = [
+ "png",
  "proc-macro2",
  "quote",
  "serde",
