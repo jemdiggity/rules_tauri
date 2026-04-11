@@ -2,6 +2,7 @@
 set -eu
 
 repo_root=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
+. "$repo_root/test/oracle_build_common.sh"
 app_root="$repo_root/examples/tauri_with_vite/app"
 src_tauri_dir="$app_root/src-tauri"
 tmpdir=$(mktemp -d)
@@ -10,28 +11,7 @@ oracle_app="$tmpdir/app"
 oracle_src_tauri="$oracle_app/src-tauri"
 
 cp -R "$app_root" "$oracle_app"
-
-cat >"$oracle_src_tauri/build.rs" <<'EOF'
-fn main() {
-    let attributes = tauri_build::Attributes::new().codegen(tauri_build::CodegenContext::new());
-    tauri_build::try_build(attributes).expect("failed to generate Tauri build context");
-}
-EOF
-
-python3 - "$oracle_src_tauri/Cargo.toml" <<'PY'
-import pathlib
-import sys
-
-path = pathlib.Path(sys.argv[1])
-text = path.read_text(encoding="utf-8")
-marker = "[build-dependencies]\n"
-replacement = marker + 'tauri-build = { version = "2", features = ["codegen"] }\n'
-if replacement in text:
-    raise SystemExit(0)
-if marker not in text:
-    raise SystemExit("missing [build-dependencies] section")
-path.write_text(text.replace(marker, replacement, 1), encoding="utf-8")
-PY
+oracle_build_prepare_src_tauri "$oracle_src_tauri"
 
 cd "$oracle_app"
 pnpm install --frozen-lockfile
