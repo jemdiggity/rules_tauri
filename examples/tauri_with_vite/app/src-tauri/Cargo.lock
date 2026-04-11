@@ -3669,12 +3669,10 @@ dependencies = [
  "glob",
  "heck 0.5.0",
  "json-patch",
- "quote",
  "schemars 0.8.22",
  "semver",
  "serde",
  "serde_json",
- "tauri-codegen",
  "tauri-utils",
  "tauri-winres",
  "toml 0.9.12+spec-1.1.0",
@@ -3872,7 +3870,6 @@ dependencies = [
  "serde_json",
  "syn 2.0.117",
  "tauri",
- "tauri-build",
  "tauri-plugin-opener",
 ]
 

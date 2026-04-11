@@ -231,25 +231,19 @@ fn main() {
             .unwrap_or_else(|error| panic!("failed to chdir to {manifest_dir}: {error}"));
     }
 
-    if std::env::var_os("RULES_TAURI_BAZEL_FULL_CONTEXT").is_none() {
-        let attributes = tauri_build::Attributes::new().codegen(tauri_build::CodegenContext::new());
-        tauri_build::try_build(attributes).expect("failed to generate Tauri build context");
-        return;
-    }
-
     println!("cargo:rerun-if-env-changed=TAURI_CONFIG");
     println!("cargo:rerun-if-env-changed=REMOVE_UNUSED_COMMANDS");
     println!("cargo:rerun-if-changed=tauri.conf.json");
     println!("cargo:rerun-if-changed=capabilities");
     println!("cargo:rerun-if-changed=../dist");
 
-    let full_context_path =
-        std::env::var("RULES_TAURI_BAZEL_FULL_CONTEXT").expect("missing RULES_TAURI_BAZEL_FULL_CONTEXT");
+    let full_context_path = std::env::var("RULES_TAURI_BAZEL_FULL_CONTEXT")
+        .expect("examples/tauri_with_vite requires Bazel-provided RULES_TAURI_BAZEL_FULL_CONTEXT");
     println!("cargo:rerun-if-env-changed=RULES_TAURI_BAZEL_FULL_CONTEXT");
     println!("cargo:rerun-if-changed={full_context_path}");
     let acl_out_dir = PathBuf::from(
         std::env::var("RULES_TAURI_BAZEL_ACL_OUT_DIR")
-            .expect("missing RULES_TAURI_BAZEL_ACL_OUT_DIR"),
+            .expect("examples/tauri_with_vite requires Bazel-provided RULES_TAURI_BAZEL_ACL_OUT_DIR"),
     );
     println!("cargo:rerun-if-env-changed=RULES_TAURI_BAZEL_ACL_OUT_DIR");
     println!("cargo:rerun-if-changed={}", acl_out_dir.display());
