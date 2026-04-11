@@ -7,10 +7,12 @@ build = "build.rs"
 [lib]
 path = "empty.rs"
 
+[dependencies]
+tauri = { version = "2", features = [] }
+
 [build-dependencies]
 proc-macro2 = "1"
 quote = "1"
 serde_json = "1"
 syn = { version = "2", features = ["full", "parsing", "visit-mut"] }
-tauri = { version = "2", features = [] }
 tauri-build = { version = "2", features = ["codegen"] }
