@@ -5,6 +5,9 @@ load("@rules_rust//cargo:defs.bzl", "cargo_build_script")
 load("@rules_rust//rust:defs.bzl", "rust_binary", "rust_library", "rust_test")
 load("//private:upstream_context_oracle.bzl", "tauri_upstream_context_oracle")
 
+FIXTURE_PACKAGE_NAME = "test/fixtures/tauri_codegen/tauri-codegen-fixture"
+ORACLE_PACKAGE_NAME = "test/fixtures/tauri_codegen/tauri-codegen-fixture-oracle"
+
 filegroup(
     name = "cargo_srcs",
     srcs = [
@@ -57,10 +60,10 @@ cargo_build_script(
     pkg_name = "tauri-codegen-fixture",
     version = "0.1.0",
     rundir = "test/fixtures/tauri_codegen/src-tauri",
-    aliases = aliases(build = True),
-    deps = all_crate_deps(build = True),
+    aliases = aliases(build = True, package_name = FIXTURE_PACKAGE_NAME),
+    deps = all_crate_deps(build = True, package_name = FIXTURE_PACKAGE_NAME),
     link_deps = ["@codegen_crates//:tauri"],
-    proc_macro_deps = all_crate_deps(build_proc_macro = True),
+    proc_macro_deps = all_crate_deps(build_proc_macro = True, package_name = FIXTURE_PACKAGE_NAME),
     data = [
         ":cargo_srcs",
         ":tauri_build_data",
@@ -94,9 +97,9 @@ tauri_upstream_context_oracle(
     pkg_name = "tauri-codegen-fixture",
     version = "0.1.0",
     rundir = "test/fixtures/tauri_codegen/src-tauri",
-    aliases = aliases(build = True),
-    build_deps = all_crate_deps(build = True),
-    build_proc_macro_deps = all_crate_deps(build_proc_macro = True),
+    aliases = aliases(build = True, package_name = ORACLE_PACKAGE_NAME),
+    build_deps = all_crate_deps(build = True, package_name = ORACLE_PACKAGE_NAME),
+    build_proc_macro_deps = all_crate_deps(build_proc_macro = True, package_name = ORACLE_PACKAGE_NAME),
     link_deps = ["@codegen_crates//:tauri"],
     frontend_dist = "//test/fixtures/tauri_codegen:dist",
     embedded_assets_rust = "//test/fixtures/tauri_codegen:embedded_assets_compressed_rust",
@@ -110,15 +113,15 @@ rust_library(
     srcs = ["src/lib.rs"],
     crate_name = "tauri_codegen_fixture_lib",
     edition = "2021",
-    aliases = aliases(),
+    aliases = aliases(package_name = FIXTURE_PACKAGE_NAME),
     crate_features = ["custom-protocol"],
     compile_data = [
         ":cargo_srcs",
         ":tauri_build_data",
         "//test/fixtures/tauri_codegen:dist",
     ],
-    deps = all_crate_deps(normal = True) + [":build_script"],
-    proc_macro_deps = all_crate_deps(proc_macro = True),
+    deps = all_crate_deps(normal = True, package_name = FIXTURE_PACKAGE_NAME) + [":build_script"],
+    proc_macro_deps = all_crate_deps(proc_macro = True, package_name = FIXTURE_PACKAGE_NAME),
 )
 
 rust_binary(
