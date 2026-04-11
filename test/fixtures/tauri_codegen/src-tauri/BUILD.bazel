@@ -11,6 +11,7 @@ filegroup(
         "Cargo.lock",
         "Cargo.toml",
         "tauri.conf.json",
+        "tauri.macos.conf.json",
         "build.rs",
         "build_contract.rs",
         "upstream_build.rs",
@@ -35,6 +36,7 @@ filegroup(
     name = "tauri_build_data",
     srcs = [
         "tauri.conf.json",
+        "tauri.macos.conf.json",
         ":capabilities",
         ":icons",
         "//test/fixtures/tauri_codegen:dist",
