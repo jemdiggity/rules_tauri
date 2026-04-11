@@ -154,7 +154,7 @@ fn ensure_generated_support_files(out_dir: &Path, context_path: &Path) {
     let include_bytes_marker =
         "include_bytes ! (:: std :: concat ! (:: std :: env ! (\"OUT_DIR\") , \"/\" , \"";
     let mut search = context.as_str();
-    let mut icon_target = None;
+    let mut missing_targets = Vec::new();
     while let Some(offset) = search.find(include_bytes_marker) {
         let remainder = &search[offset + include_bytes_marker.len()..];
         let Some(end) = remainder.find('"') else {
@@ -162,13 +162,12 @@ fn ensure_generated_support_files(out_dir: &Path, context_path: &Path) {
         };
         let candidate = &remainder[..end];
         if !out_dir.join(candidate).exists() {
-            icon_target = Some(candidate.to_string());
-            break;
+            missing_targets.push(candidate.to_string());
         }
         search = &remainder[end..];
     }
 
-    if let Some(file_name) = icon_target {
+    for file_name in missing_targets {
         let icon_path = PathBuf::from("icons/icon.icns");
         let destination = out_dir.join(file_name);
         fs::copy(&icon_path, &destination).unwrap_or_else(|error| {
