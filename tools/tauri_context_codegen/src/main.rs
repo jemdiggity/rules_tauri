@@ -71,12 +71,9 @@ fn main() -> Result<()> {
 }
 
 fn load_config(config_path: &Path, target_triple: &str) -> Result<tauri_utils::config::Config> {
-    let config_parent = config_path
-        .parent()
-        .context("config path must have parent")?;
     let target = tauri_utils::platform::Target::from_triple(target_triple);
-    let (config_value, _paths) = tauri_utils::config::parse::read_from(target, config_parent)
-        .with_context(|| format!("failed to parse config under {}", config_parent.display()))?;
+    let (config_value, _path) = tauri_utils::config::parse::parse_value(target, config_path)
+        .with_context(|| format!("failed to parse {}", config_path.display()))?;
     serde_json::from_value(config_value).context("failed to decode normalized Tauri config")
 }
 
