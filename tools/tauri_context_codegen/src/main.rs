@@ -1,9 +1,23 @@
 use anyhow::{bail, Context, Result};
-use quote::quote;
+use blake3;
+use plist;
+use quote::{quote, TokenStreamExt};
 use std::ffi::{OsStr, OsString};
+use std::fmt::Write;
 use std::fs;
+use std::io::Cursor;
 use std::path::{Path, PathBuf};
+use std::str::FromStr;
 use syn::{Expr, ExprArray, ExprReference, File, Item};
+use tauri_utils::{
+    acl::{
+        get_capabilities, manifest::Manifest, resolved::Resolved,
+    },
+    config::{Config, PatternKind},
+    platform::Target,
+    tokens::{map_lit, str_lit},
+    write_if_changed,
+};
 
 const ACL_MANIFESTS_FILE_NAME: &str = "acl-manifests.json";
 const CAPABILITIES_FILE_NAME: &str = "capabilities.json";
@@ -54,16 +68,8 @@ fn main() -> Result<()> {
     config_value.build.dev_url = None;
 
     let embedded_assets = parse_embedded_assets_expr(&embedded_assets_rust)?;
-    let context = tauri_codegen::context_codegen(tauri_codegen::ContextData {
-        dev: true,
-        config: config_value,
-        config_parent,
-        root: quote!(::tauri),
-        capabilities: None,
-        assets: Some(embedded_assets),
-        test: false,
-    })
-    .context("failed to generate Tauri build context")?;
+    let context = generate_context(&config_value, &config_parent, embedded_assets, &acl_out_dir)
+        .context("failed to generate repo-owned Tauri build context")?;
 
     fs::write(&out, format!("{context}\n"))
         .with_context(|| format!("failed to write {}", out.display()))?;
@@ -92,6 +98,397 @@ fn uses_default_config_layout(config_path: &Path) -> bool {
         config_path.file_name(),
         Some(name) if name == OsStr::new("tauri.conf.json")
     )
+}
+
+fn generate_context(
+    config: &Config,
+    config_parent: &Path,
+    embedded_assets: Expr,
+    _acl_out_dir: &Path,
+) -> Result<String> {
+    let target = std::env::var("TAURI_ENV_TARGET_TRIPLE")
+        .as_deref()
+        .map(Target::from_triple)
+        .unwrap_or_else(|_| Target::current());
+
+    let default_window_icon = cached_window_icon_expr(config, config_parent, target)?;
+    let app_icon = cached_app_icon_expr(config, config_parent, target)?;
+    let package_info = package_info_expr(config)?;
+    let maybe_embed_plist_block = maybe_embed_plist_block(config, config_parent, target)?;
+    let pattern = pattern_expr(config, config_parent)?;
+    let runtime_authority = runtime_authority_expr(config, target)?;
+    let plugin_global_api_scripts = plugin_global_api_scripts_expr(config, config_parent)?;
+    let maybe_config_parent_setter = maybe_config_parent_setter(config_parent);
+
+    let embedded_assets_expr = quote!(#embedded_assets);
+
+    let context = quote!({
+        #maybe_embed_plist_block
+
+        #[allow(unused_mut, clippy::let_and_return)]
+        let mut context = ::tauri::Context::new(
+            #config,
+            ::std::boxed::Box::new(assets),
+            #default_window_icon,
+            #app_icon,
+            #package_info,
+            #pattern,
+            #runtime_authority,
+            #plugin_global_api_scripts
+        );
+
+        #maybe_config_parent_setter
+
+        context
+    });
+
+    let output = quote!({
+        fn inner<R: ::tauri::Runtime, A: ::tauri::Assets<R> + 'static>(assets: A) -> ::tauri::Context<R> {
+            let thread = ::std::thread::Builder::new()
+                .name(String::from("generated tauri context creation"))
+                .stack_size(8 * 1024 * 1024)
+                .spawn(move || #context)
+                .expect("unable to create thread with 8MiB stack");
+
+            match thread.join() {
+                Ok(context) => context,
+                Err(_) => {
+                    eprintln!("the generated Tauri `Context` panicked during creation");
+                    ::std::process::exit(101);
+                }
+            }
+        }
+        inner(#embedded_assets_expr)
+    });
+
+    Ok(output.to_string())
+}
+
+fn maybe_config_parent_setter(config_parent: &Path) -> proc_macro2::TokenStream {
+    let config_parent = config_parent.to_string_lossy();
+    quote!({
+        context.with_config_parent(#config_parent);
+    })
+}
+
+fn maybe_embed_plist_block(
+    config: &Config,
+    config_parent: &Path,
+    target: Target,
+) -> Result<proc_macro2::TokenStream> {
+    #[cfg(target_os = "macos")]
+    {
+        let running_tests = false;
+        if target == Target::MacOS && !running_tests {
+            let info_plist_path = config_parent.join("Info.plist");
+            let mut info_plist = if info_plist_path.exists() {
+                plist::Value::from_file(&info_plist_path).unwrap_or_else(|e| {
+                    panic!("failed to read plist {}: {}", info_plist_path.display(), e)
+                })
+            } else {
+                plist::Value::Dictionary(Default::default())
+            };
+
+            if let Some(plist) = info_plist.as_dictionary_mut() {
+                if let Some(bundle_name) = config
+                    .bundle
+                    .macos
+                    .bundle_name
+                    .as_ref()
+                    .or(config.product_name.as_ref())
+                {
+                    plist.insert("CFBundleName".into(), bundle_name.as_str().into());
+                }
+
+                if let Some(version) = &config.version {
+                    let bundle_version = &config.bundle.macos.bundle_version;
+                    plist.insert("CFBundleShortVersionString".into(), version.clone().into());
+                    plist.insert(
+                        "CFBundleVersion".into(),
+                        bundle_version
+                            .clone()
+                            .unwrap_or_else(|| version.clone())
+                            .into(),
+                    );
+                }
+            }
+
+            let mut plist_contents = std::io::BufWriter::new(Vec::new());
+            info_plist
+                .to_writer_xml(&mut plist_contents)
+                .expect("failed to serialize plist");
+            let plist_contents =
+                String::from_utf8_lossy(&plist_contents.into_inner().unwrap()).into_owned();
+
+            let plist = Cached::try_from(plist_contents)?;
+            return Ok(quote!({
+                tauri::embed_plist::embed_info_plist!(#plist);
+            }));
+        }
+    }
+
+    Ok(quote!())
+}
+
+fn package_info_expr(config: &Config) -> Result<proc_macro2::TokenStream> {
+    let package_name = if let Some(product_name) = &config.product_name {
+        quote!(#product_name.to_string())
+    } else {
+        quote!(env!("CARGO_PKG_NAME").to_string())
+    };
+    let package_version = if let Some(version) = &config.version {
+        semver::Version::from_str(version)?;
+        quote!(#version.to_string())
+    } else {
+        quote!(env!("CARGO_PKG_VERSION").to_string())
+    };
+    Ok(quote!(
+        ::tauri::PackageInfo {
+            name: #package_name,
+            version: #package_version.parse().unwrap(),
+            authors: env!("CARGO_PKG_AUTHORS"),
+            description: env!("CARGO_PKG_DESCRIPTION"),
+            crate_name: env!("CARGO_PKG_NAME"),
+        }
+    ))
+}
+
+fn pattern_expr(config: &Config, _config_parent: &Path) -> Result<proc_macro2::TokenStream> {
+    let pattern = match &config.app.security.pattern {
+        PatternKind::Brownfield => quote!(::tauri::Pattern::Brownfield),
+        #[cfg(not(feature = "isolation"))]
+        PatternKind::Isolation { dir: _ } => quote!(::tauri::Pattern::Brownfield),
+        #[cfg(feature = "isolation")]
+        PatternKind::Isolation { dir } => {
+            let dir = config_parent.join(dir);
+            if !dir.exists() {
+                panic!("The isolation application path is set to `{dir:?}` but it does not exist")
+            }
+            unimplemented!("isolation pattern is not used in this fixture")
+        }
+    };
+    Ok(pattern)
+}
+
+fn runtime_authority_expr(config: &Config, target: Target) -> Result<proc_macro2::TokenStream> {
+    let acl_file_path = std::env::var("OUT_DIR")
+        .map(PathBuf::from)
+        .context("missing OUT_DIR")?
+        .join(ACL_MANIFESTS_FILE_NAME);
+    let acl: std::collections::BTreeMap<String, Manifest> = if acl_file_path.exists() {
+        let acl_file =
+            std::fs::read_to_string(&acl_file_path).expect("failed to read plugin manifest map");
+        serde_json::from_str(&acl_file).expect("failed to parse plugin manifest map")
+    } else {
+        Default::default()
+    };
+
+    let capabilities_file_path = std::env::var("OUT_DIR")
+        .map(PathBuf::from)
+        .context("missing OUT_DIR")?
+        .join(CAPABILITIES_FILE_NAME);
+    let capabilities_from_files = if capabilities_file_path.exists() {
+        let capabilities_json =
+            std::fs::read_to_string(&capabilities_file_path).expect("failed to read capabilities");
+        serde_json::from_str(&capabilities_json).expect("failed to parse capabilities")
+    } else {
+        Default::default()
+    };
+    let capabilities = get_capabilities(config, capabilities_from_files, None).unwrap();
+
+    let resolved = Resolved::resolve(&acl, capabilities, target).expect("failed to resolve ACL");
+    let acl_tokens = map_lit(
+        quote! { ::std::collections::BTreeMap },
+        &acl,
+        str_lit,
+        std::convert::identity,
+    );
+
+    Ok(quote!(::tauri::runtime_authority!(#acl_tokens, #resolved)))
+}
+
+fn plugin_global_api_scripts_expr(
+    config: &Config,
+    config_parent: &Path,
+) -> Result<proc_macro2::TokenStream> {
+    if config.app.with_global_tauri {
+        if let Some(scripts) = tauri_utils::plugin::read_global_api_scripts(
+            &PathBuf::from(std::env::var("OUT_DIR").context("missing OUT_DIR")?),
+        ) {
+            let scripts = scripts.into_iter().map(|s| quote!(#s));
+            return Ok(quote!(::std::option::Option::Some(&[#(#scripts),*])));
+        }
+    }
+    let _ = config_parent;
+    Ok(quote!(::std::option::Option::None))
+}
+
+fn cached_window_icon_expr(
+    config: &Config,
+    config_parent: &Path,
+    target: Target,
+) -> Result<proc_macro2::TokenStream> {
+    if target == Target::Windows {
+        let icon_path = find_icon(config, config_parent, |i| i.ends_with(".ico"), "icons/icon.ico");
+        if icon_path.exists() {
+            let icon = CachedIcon::new(&quote!(::tauri), &icon_path)?;
+            return Ok(quote!(::std::option::Option::Some(#icon)));
+        }
+
+        let icon_path = find_icon(config, config_parent, |i| i.ends_with(".png"), "icons/icon.png");
+        let icon = CachedIcon::new(&quote!(::tauri), &icon_path)?;
+        return Ok(quote!(::std::option::Option::Some(#icon)));
+    }
+
+    let icon_path = find_icon(config, config_parent, |i| i.ends_with(".png"), "icons/icon.png");
+    let icon = CachedIcon::new(&quote!(::tauri), &icon_path)?;
+    Ok(quote!(::std::option::Option::Some(#icon)))
+}
+
+fn cached_app_icon_expr(
+    config: &Config,
+    config_parent: &Path,
+    target: Target,
+) -> Result<proc_macro2::TokenStream> {
+    if target == Target::MacOS {
+        let mut icon_path = find_icon(config, config_parent, |i| i.ends_with(".icns"), "icons/icon.png");
+        if !icon_path.exists() {
+            icon_path = find_icon(config, config_parent, |i| i.ends_with(".png"), "icons/icon.png");
+        }
+        let icon = CachedIcon::new_raw(&quote!(::tauri), &icon_path)?;
+        return Ok(quote!(::std::option::Option::Some(#icon.to_vec())));
+    }
+
+    Ok(quote!(::std::option::Option::None))
+}
+
+fn find_icon(
+    config: &Config,
+    config_parent: &Path,
+    predicate: impl Fn(&&String) -> bool,
+    default: &str,
+) -> PathBuf {
+    let icon_path = config
+        .bundle
+        .icon
+        .iter()
+        .find(predicate)
+        .map(AsRef::as_ref)
+        .unwrap_or(default);
+    config_parent.join(icon_path)
+}
+
+struct Cached {
+    checksum: String,
+}
+
+impl TryFrom<String> for Cached {
+    type Error = anyhow::Error;
+
+    fn try_from(value: String) -> Result<Self> {
+        Self::try_from(value.into_bytes())
+    }
+}
+
+impl TryFrom<Vec<u8>> for Cached {
+    type Error = anyhow::Error;
+
+    fn try_from(content: Vec<u8>) -> Result<Self> {
+        let checksum = checksum(&content)?;
+        let path = PathBuf::from(std::env::var("OUT_DIR").context("missing OUT_DIR")?).join(&checksum);
+        write_if_changed(&path, &content)
+            .with_context(|| format!("failed to write {}", path.display()))?;
+        Ok(Self { checksum })
+    }
+}
+
+impl quote::ToTokens for Cached {
+    fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
+        let checksum = &self.checksum;
+        tokens.append_all(quote!(::std::concat!(::std::env!("OUT_DIR"), "/", #checksum)));
+    }
+}
+
+enum IconFormat {
+    Raw,
+    Image { width: u32, height: u32 },
+}
+
+struct CachedIcon {
+    cache: Cached,
+    format: IconFormat,
+    root: proc_macro2::TokenStream,
+}
+
+impl CachedIcon {
+    fn new(root: &proc_macro2::TokenStream, icon: &Path) -> Result<Self> {
+        match icon.extension().and_then(OsStr::to_str) {
+            Some("png") => Self::new_png(root, icon),
+            Some("ico") => bail!("ico icons are not supported by this tool"),
+            Some(other) => bail!(
+                "unsupported icon extension `{other}` for {}",
+                icon.display()
+            ),
+            None => bail!("icon {} has no extension", icon.display()),
+        }
+    }
+
+    fn new_raw(root: &proc_macro2::TokenStream, icon: &Path) -> Result<Self> {
+        let buf = fs::read(icon).with_context(|| format!("failed to open icon {}", icon.display()))?;
+        Cached::try_from(buf).map(|cache| Self {
+            cache,
+            root: root.clone(),
+            format: IconFormat::Raw,
+        })
+    }
+
+    fn new_png(root: &proc_macro2::TokenStream, icon: &Path) -> Result<Self> {
+        let buf = fs::read(icon).with_context(|| format!("failed to open icon {}", icon.display()))?;
+        let decoder = png::Decoder::new(Cursor::new(&buf));
+        let mut reader = decoder
+            .read_info()
+            .unwrap_or_else(|e| panic!("failed to read icon {}: {}", icon.display(), e));
+
+        if reader.output_color_type().0 != png::ColorType::Rgba {
+            panic!("icon {} is not RGBA", icon.display());
+        }
+
+        let mut rgba = Vec::with_capacity(reader.output_buffer_size());
+        while let Ok(Some(row)) = reader.next_row() {
+            rgba.extend(row.data());
+        }
+
+        Cached::try_from(rgba).map(|cache| Self {
+            cache,
+            root: root.clone(),
+            format: IconFormat::Image {
+                width: reader.info().width,
+                height: reader.info().height,
+            },
+        })
+    }
+}
+
+impl quote::ToTokens for CachedIcon {
+    fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
+        let root = &self.root;
+        let cache = &self.cache;
+        let raw = quote!(::std::include_bytes!(#cache));
+        tokens.append_all(match self.format {
+            IconFormat::Raw => raw,
+            IconFormat::Image { width, height } => {
+                quote!(#root::image::Image::new(#raw, #width, #height))
+            }
+        });
+    }
+}
+
+fn checksum(bytes: &[u8]) -> Result<String> {
+    let mut hex = String::with_capacity(64);
+    for byte in blake3::hash(bytes).as_bytes() {
+        write!(hex, "{byte:02x}")?;
+    }
+    Ok(hex)
 }
 
 fn parse_args() -> Result<Args> {
