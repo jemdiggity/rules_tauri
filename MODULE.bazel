@@ -39,10 +39,16 @@ crate = use_extension("@rules_rust//crate_universe:extensions.bzl", "crate")
 crate.from_cargo(
     name = "codegen_crates",
     cargo_lockfile = "//test/fixtures/tauri_codegen/src-tauri:Cargo.lock",
-    manifests = [
-        "//test/fixtures/tauri_codegen/oracle_src-tauri:Cargo.toml",
-        "//test/fixtures/tauri_codegen/src-tauri:Cargo.toml",
+    manifests = ["//test/fixtures/tauri_codegen/src-tauri:Cargo.toml"],
+    supported_platform_triples = [
+        "aarch64-apple-darwin",
+        "x86_64-apple-darwin",
     ],
+)
+crate.from_cargo(
+    name = "codegen_oracle_crates",
+    cargo_lockfile = "//test/fixtures/tauri_codegen/oracle_src-tauri:Cargo.lock",
+    manifests = ["//test/fixtures/tauri_codegen/oracle_src-tauri:Cargo.toml"],
     supported_platform_triples = [
         "aarch64-apple-darwin",
         "x86_64-apple-darwin",
@@ -100,6 +106,15 @@ crate.annotation(
         "//tools:tauri-utils-bazel-debug-assertions.patch",
         "//tools:tauri-utils-bazel-permission-paths.patch",
     ],
+    repositories = ["codegen_oracle_crates"],
+)
+crate.annotation(
+    crate = "tauri-utils",
+    patch_args = ["-p1"],
+    patches = [
+        "//tools:tauri-utils-bazel-debug-assertions.patch",
+        "//tools:tauri-utils-bazel-permission-paths.patch",
+    ],
     repositories = ["example_crates"],
 )
 crate.annotation(
@@ -125,7 +140,9 @@ use_repo(
     "acl_tool_crates",
     "context_tool_crates",
     "codegen_crates",
+    "codegen_oracle_crates",
     "codegen_crates__tauri-2.10.3",
+    "codegen_oracle_crates__tauri-2.10.3",
     "example_crates",
     "example_crates__tauri-2.10.3",
     "example_crates__tauri-plugin-opener-2.5.3",
