@@ -1666,8 +1666,10 @@ dependencies = [
  "anyhow",
  "proc-macro2",
  "quote",
+ "serde_json",
  "syn 2.0.117",
  "tauri-codegen",
+ "tauri-utils",
 ]
 
 [[package]]
