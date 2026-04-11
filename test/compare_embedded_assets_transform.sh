@@ -6,7 +6,7 @@ fixture_dir="$repo_root/test/fixtures/embedded_assets_transform"
 . "$repo_root/test/oracle_embedded_assets_common.sh"
 cd "$repo_root"
 
-tauri_repo=$(oracle_embedded_assets_require_tauri_repo)
+tauri_utils_oracle_rev="926a57bb0851e45d47ad1ee68fc96a9c25754c7c"
 
 tmpdir=$(mktemp -d)
 trap 'rm -rf "$tmpdir"' EXIT
@@ -17,16 +17,16 @@ oracle_embedded_assets_prepare_crate \
     "$fixture_dir" \
     "$fixture_dir/oracle_build.rs" \
     "embedded-assets-transform-oracle" \
-    "" \
+    "$fixture_dir/oracle_Cargo.lock" \
     "base64 = \"0.22\"
 serde_json = \"1\"
 sha2 = \"0.10\"
-tauri-utils = { path = \"$tauri_repo/crates/tauri-utils\", features = [\"html-manipulation-2\"] }
+tauri-utils = { git = \"https://github.com/tauri-apps/tauri\", rev = \"$tauri_utils_oracle_rev\", features = [\"html-manipulation-2\"] }
 walkdir = \"2\""
 
 (
     cd "$expected_crate"
-    CARGO_TARGET_DIR="$tmpdir/target" cargo build --quiet >/dev/null
+    CARGO_TARGET_DIR="$tmpdir/target" cargo build --quiet --locked >/dev/null
 )
 
 expected_json="$expected_crate/embedded_assets_transform.oracle.json"

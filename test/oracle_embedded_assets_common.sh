@@ -1,13 +1,5 @@
 #!/bin/sh
 
-oracle_embedded_assets_require_tauri_repo() {
-    if [ "${TAURI_CODEGEN_REPO:-}" = "" ]; then
-        echo "TAURI_CODEGEN_REPO must point to a local Tauri checkout" >&2
-        exit 1
-    fi
-    printf '%s\n' "$TAURI_CODEGEN_REPO"
-}
-
 oracle_embedded_assets_prepare_crate() {
     crate_dir=$1
     fixture_dir=$2
