@@ -28,7 +28,8 @@ struct Args {
 fn main() -> Result<()> {
     let args = parse_args()?;
 
-    let invocation_dir = std::env::current_dir().context("failed to determine current directory")?;
+    let invocation_dir =
+        std::env::current_dir().context("failed to determine current directory")?;
     let config = absolutize(&invocation_dir, args.config);
     let embedded_assets_rust = absolutize(&invocation_dir, args.embedded_assets_rust);
     let acl_out_dir = absolutize(&invocation_dir, args.acl_out_dir);
@@ -45,8 +46,11 @@ fn main() -> Result<()> {
     std::env::set_var("OUT_DIR", &out_dir);
     std::env::set_var("TAURI_ENV_TARGET_TRIPLE", TARGET_TRIPLE);
 
-    let (mut config_value, config_parent) =
-        tauri_codegen::get_config(&config).with_context(|| format!("failed to read {}", config.display()))?;
+    let config_parent = config
+        .parent()
+        .context("`--config` must include a parent directory")?
+        .to_path_buf();
+    let mut config_value = load_config(&config, TARGET_TRIPLE)?;
     config_value.build.dev_url = None;
 
     let embedded_assets = parse_embedded_assets_expr(&embedded_assets_rust)?;
@@ -64,6 +68,16 @@ fn main() -> Result<()> {
     fs::write(&out, format!("{context}\n"))
         .with_context(|| format!("failed to write {}", out.display()))?;
     Ok(())
+}
+
+fn load_config(config_path: &Path, target_triple: &str) -> Result<tauri_utils::config::Config> {
+    let config_parent = config_path
+        .parent()
+        .context("config path must have parent")?;
+    let target = tauri_utils::platform::Target::from_triple(target_triple);
+    let (config_value, _paths) = tauri_utils::config::parse::read_from(target, config_parent)
+        .with_context(|| format!("failed to parse config under {}", config_parent.display()))?;
+    serde_json::from_value(config_value).context("failed to decode normalized Tauri config")
 }
 
 fn parse_args() -> Result<Args> {
@@ -127,12 +141,12 @@ fn copy_acl_outputs(source_dir: &Path, out_dir: &Path) -> Result<()> {
 }
 
 fn parse_embedded_assets_expr(path: &Path) -> Result<Expr> {
-    let source_bytes = fs::read(path)
-        .with_context(|| format!("failed to read {}", path.display()))?;
+    let source_bytes =
+        fs::read(path).with_context(|| format!("failed to read {}", path.display()))?;
     let source = String::from_utf8(source_bytes.clone())
         .with_context(|| format!("failed to decode {}", path.display()))?;
-    let file = syn::parse_file(&source)
-        .with_context(|| format!("failed to parse {}", path.display()))?;
+    let file =
+        syn::parse_file(&source).with_context(|| format!("failed to parse {}", path.display()))?;
     let marker = format!(
         "RULES_TAURI_BAZEL_OWNED_EMBEDDED_ASSETS:{:016x}",
         fnv1a64(&source_bytes)
@@ -210,7 +224,10 @@ fn tuple_elements(expr: &Expr, count: usize) -> Result<Vec<Expr>> {
         bail!("expected tuple expression");
     };
     if tuple.elems.len() != count {
-        bail!("expected tuple with {count} elements, got {}", tuple.elems.len());
+        bail!(
+            "expected tuple with {count} elements, got {}",
+            tuple.elems.len()
+        );
     }
     Ok(tuple.elems.iter().cloned().collect())
 }
