@@ -63,6 +63,24 @@ crate.from_cargo(
         "x86_64-apple-darwin",
     ],
 )
+crate.from_cargo(
+    name = "acl_tool_crates",
+    cargo_lockfile = "//tools/tauri_acl_prep:Cargo.lock",
+    manifests = ["//tools/tauri_acl_prep:Cargo.toml"],
+    supported_platform_triples = [
+        "aarch64-apple-darwin",
+        "x86_64-apple-darwin",
+    ],
+)
+crate.from_cargo(
+    name = "context_tool_crates",
+    cargo_lockfile = "//tools/tauri_context_codegen:Cargo.lock",
+    manifests = ["//tools/tauri_context_codegen:Cargo.toml"],
+    supported_platform_triples = [
+        "aarch64-apple-darwin",
+        "x86_64-apple-darwin",
+    ],
+)
 crate.annotation(
     crate = "tauri-codegen",
     patch_args = ["-p1"],
@@ -78,6 +96,14 @@ crate.annotation(
         "//tools:tauri-codegen-bazel-inline-assets.patch",
     ],
     repositories = ["example_crates"],
+)
+crate.annotation(
+    crate = "tauri-codegen",
+    patch_args = ["-p1"],
+    patches = [
+        "//tools:tauri-codegen-bazel-inline-assets.patch",
+    ],
+    repositories = ["context_tool_crates"],
 )
 crate.annotation(
     crate = "tauri-utils",
@@ -97,4 +123,30 @@ crate.annotation(
     ],
     repositories = ["example_crates"],
 )
-use_repo(crate, "codegen_crates", "example_crates", "tool_crates")
+crate.annotation(
+    crate = "tauri-utils",
+    patch_args = ["-p1"],
+    patches = [
+        "//tools:tauri-utils-bazel-debug-assertions.patch",
+        "//tools:tauri-utils-bazel-permission-paths.patch",
+    ],
+    repositories = ["acl_tool_crates"],
+)
+crate.annotation(
+    crate = "tauri-utils",
+    patch_args = ["-p1"],
+    patches = [
+        "//tools:tauri-utils-bazel-debug-assertions.patch",
+        "//tools:tauri-utils-bazel-permission-paths.patch",
+    ],
+    repositories = ["context_tool_crates"],
+)
+use_repo(
+    crate,
+    "acl_tool_crates",
+    "context_tool_crates",
+    "codegen_crates",
+    "codegen_crates__tauri-2.10.3",
+    "example_crates",
+    "tool_crates",
+)

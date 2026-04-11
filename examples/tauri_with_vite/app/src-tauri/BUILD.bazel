@@ -3,6 +3,7 @@ package(default_visibility = ["//visibility:public"])
 load("@example_crates//:defs.bzl", "aliases", "all_crate_deps")
 load("@rules_rust//cargo:defs.bzl", "cargo_build_script")
 load("@rules_rust//rust:defs.bzl", "rust_binary", "rust_library", "rust_test")
+load("//private:upstream_context_oracle.bzl", "tauri_upstream_context_oracle")
 
 filegroup(
     name = "cargo_srcs",
@@ -40,21 +41,25 @@ filegroup(
     ],
 )
 
-genrule(
-    name = "full_context_rust",
-    srcs = [
-        "//examples/tauri_with_vite:embedded_assets_rust",
-        ":upstream_build_script",
+tauri_upstream_context_oracle(
+    upstream_name = "upstream_build_script",
+    full_context_name = "full_context_rust",
+    cargo_srcs = ":cargo_srcs",
+    tauri_build_data = ":tauri_build_data",
+    build_script_src = "upstream_build.rs",
+    build_contract_src = "build_contract.rs",
+    pkg_name = "tauri-with-vite",
+    version = "0.1.0",
+    rundir = "examples/tauri_with_vite/app/src-tauri",
+    aliases = aliases(build = True),
+    build_deps = all_crate_deps(build = True),
+    build_proc_macro_deps = all_crate_deps(build_proc_macro = True),
+    link_deps = [
+        "@example_crates//:tauri",
+        "@example_crates//:tauri-plugin-opener",
     ],
-    tools = ["//tools:tauri_full_context_fixture_exec"],
-    outs = ["tauri-build-context.rs"],
-    cmd = """
-set -eu
-$(execpath //tools:tauri_full_context_fixture_exec) \
-  --out "$@" \
-  --embedded-assets-rust "$(location //examples/tauri_with_vite:embedded_assets_rust)" \
-  --upstream-context-rust "$(location :upstream_build_script)/tauri-build-context.rs"
-""",
+    frontend_dist = "//examples/tauri_with_vite:frontend_dist",
+    embedded_assets_rust = "//examples/tauri_with_vite:embedded_assets_rust",
 )
 
 cargo_build_script(
@@ -96,41 +101,6 @@ cargo_build_script(
         "DEP_TAURI_DEV": "false",
         "RULES_TAURI_BAZEL_FULL_CONTEXT": "$(location :full_context_rust)",
         "RULES_TAURI_BAZEL_UPSTREAM_OUT_DIR": "$(location :upstream_build_script)",
-    },
-)
-
-cargo_build_script(
-    name = "upstream_build_script",
-    srcs = [
-        "upstream_build.rs",
-        "build_contract.rs",
-    ],
-    crate_root = "upstream_build.rs",
-    crate_name = "upstream_build_script_build",
-    edition = "2021",
-    pkg_name = "tauri-with-vite",
-    version = "0.1.0",
-    rundir = "examples/tauri_with_vite/app/src-tauri",
-    aliases = aliases(build = True),
-    deps = all_crate_deps(build = True),
-    link_deps = [
-        "@example_crates//:tauri",
-        "@example_crates//:tauri-plugin-opener",
-    ],
-    proc_macro_deps = all_crate_deps(build_proc_macro = True),
-    data = [
-        ":cargo_srcs",
-        ":tauri_build_data",
-        "//examples/tauri_with_vite:frontend_dist",
-    ],
-    compile_data = [
-        ":cargo_srcs",
-        ":tauri_build_data",
-        "//examples/tauri_with_vite:frontend_dist",
-    ],
-    build_script_env = {
-        "DEP_TAURI_DEV": "false",
-        "RULES_TAURI_FRONTEND_DIST": "$(location //examples/tauri_with_vite:frontend_dist)",
     },
 )
 
