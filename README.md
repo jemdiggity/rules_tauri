@@ -2,9 +2,15 @@
 
 Release-focused Bazel rules for Tauri applications.
 
-`rules_tauri` is intentionally narrow. Its v1 scope is:
+`rules_tauri` owns Tauri release semantics short of compilation. It now provides both:
+
+- packaging rules for users who already have a release binary
+- Bazel-native release helpers for standard-layout Tauri Rust apps
+
+Its scope is:
 
 - accept already-built frontend assets, Rust binaries, sidecars, and Tauri metadata,
+- optionally generate Bazel-owned Tauri release context and release crate roots for standard `src-tauri` apps,
 - assemble a deterministic unsigned macOS `.app` bundle for one target triple,
 - stop at the `.app` boundary.
 
@@ -45,8 +51,38 @@ See:
 ## Public API
 
 ```starlark
-load("@rules_tauri//tauri:defs.bzl", "tauri_bundle_inputs", "tauri_macos_app")
+load("@rules_tauri//tauri:defs.bzl", "tauri_application")
 ```
+
+Preferred entrypoints:
+
+- `tauri_application`
+  - standard-layout Tauri Rust app
+  - Bazel owns release context/codegen and app bundle assembly
+- `tauri_app`
+  - you already have a release binary and want app bundle assembly only
+
+Lower-level escape hatches:
+
+- `tauri_rust_app`
+- `tauri_release_context`
+- `tauri_release_rust_library_src`
+- `tauri_sidecar`
+- `tauri_bundle_inputs`
+- `tauri_macos_app`
+
+## Typical Usage
+
+For a normal Tauri app with a standard `src-tauri` layout, use `tauri_application(...)`.
+The consuming repo still owns:
+
+- frontend build
+- Rust dependency declarations
+- optional Cargo/Tauri CLI dev workflow
+
+`rules_tauri` then owns the Bazel-native release context generation, release source rewriting, release binary wiring, and unsigned `.app` assembly.
+
+For a repo that already has a suitable release binary, use `tauri_app(...)` directly instead.
 
 ## Current Scope
 
@@ -74,5 +110,5 @@ tools/
 ## Examples
 
 - [`examples/minimal_macos`](examples/minimal_macos) exercises bundle layout mechanics with simple fixture inputs
-- [`examples/tauri_with_vite`](examples/tauri_with_vite) vendors a real `create tauri-app` Vue/Vite project and builds its frontend and Tauri binary from source during Bazel execution
+- [`examples/tauri_with_vite`](examples/tauri_with_vite) vendors a real `create tauri-app` Vue/Vite project and uses the high-level `tauri_application` macro for its release path
 - [`test/fixtures/tauri_codegen`](test/fixtures/tauri_codegen) isolates Tauri codegen and embedded-asset behavior under `rules_rust`

@@ -7,9 +7,9 @@ The example is intentionally split in two:
 - `app/` contains the vendored application source so the example matches a real generated project.
 - `src/` contains checked-in packaging inputs that are not generated during the example build: icon and Tauri config.
 
-The example-specific Bazel glue builds the frontend assets and the Tauri Rust binary from `app/`, then passes those generated outputs through the public `rules_tauri` interface. Bazel also owns the embedded-assets Rust source that the example build script splices into Tauri's generated codegen context. `rules_tauri` itself still only assembles the unsigned macOS `.app`.
+The example now uses the high-level `tauri_application(...)` macro in `app/src-tauri/BUILD.bazel`. Bazel owns the release context generation, release-source rewriting, Rust release binary wiring, and unsigned macOS app assembly. The example still keeps `build.rs` for dev-oriented Cargo/Tauri CLI flows.
 
-For release assembly parity with normal Tauri builds, the frontend assets are expected to be embedded into the Tauri binary before `rules_tauri` bundles the app. They are not copied into `Contents/Resources/frontend/...` in the final `.app`. In this example path, Bazel owns that embedded-assets seam while upstream Tauri still owns the remaining runtime behavior and unreplaced compile-time seams.
+For release assembly parity with normal Tauri builds, the frontend assets are expected to be embedded into the Tauri binary before `rules_tauri` bundles the app. They are not copied into `Contents/Resources/frontend/...` in the final `.app`. In this example path, Bazel owns that embedded-assets seam and the Tauri release context seam instead of relying on the local crate `build.rs` in the release graph.
 
 Build with:
 
