@@ -3,7 +3,23 @@ package(default_visibility = ["//visibility:public"])
 load("@example_crates//:defs.bzl", "aliases", "all_crate_deps")
 load("@rules_rust//cargo:defs.bzl", "cargo_build_script")
 load("@rules_rust//rust:defs.bzl", "rust_test")
-load("//tauri:defs.bzl", "tauri_rust_app")
+load("//tauri:defs.bzl", "tauri_application")
+
+platform(
+    name = "macos_arm64",
+    constraint_values = [
+        "@platforms//cpu:aarch64",
+        "@platforms//os:macos",
+    ],
+)
+
+platform(
+    name = "macos_x86_64",
+    constraint_values = [
+        "@platforms//cpu:x86_64",
+        "@platforms//os:macos",
+    ],
+)
 
 filegroup(
     name = "cargo_srcs",
@@ -52,9 +68,10 @@ filegroup(
     ],
 )
 
-tauri_rust_app(
-    name = "tauri_with_vite_lib",
-    binary_name = "tauri_with_vite_bin",
+tauri_application(
+    name = "app_arm64",
+    platform = ":macos_arm64",
+    target_triple = "aarch64-apple-darwin",
     cargo_srcs = ":cargo_srcs",
     context_cargo_srcs = ":context_cargo_srcs",
     tauri_build_data = ":tauri_build_data",
@@ -63,11 +80,48 @@ tauri_rust_app(
     aliases = aliases(),
     deps = all_crate_deps(normal = True),
     proc_macro_deps = all_crate_deps(proc_macro = True),
+    lib_crate_name = "tauri_with_vite_lib",
+    binary_crate_name = "tauri_with_vite",
     crate_features = ["custom-protocol"],
     acl_dep_env_targets = [
         "@example_crates__tauri-2.10.3//:build_script_build",
         "@example_crates__tauri-plugin-opener-2.5.3//:build_script_build",
     ],
+    tauri_config = "tauri.conf.json",
+    main_binary_name = "tauri-with-vite",
+    icons = ["icons/icon.icns"],
+    capabilities = [":capabilities/default.json"],
+    bundle_id = "com.jeremyhale.tauri-with-vite",
+    product_name = "tauri-with-vite",
+    version = "0.1.0",
+)
+
+tauri_application(
+    name = "app_x86_64",
+    platform = ":macos_x86_64",
+    target_triple = "x86_64-apple-darwin",
+    cargo_srcs = ":cargo_srcs",
+    context_cargo_srcs = ":context_cargo_srcs",
+    tauri_build_data = ":tauri_build_data",
+    frontend_dist = "//examples/tauri_with_vite:frontend_dist",
+    embedded_assets_rust = "//examples/tauri_with_vite:embedded_assets_rust",
+    aliases = aliases(),
+    deps = all_crate_deps(normal = True),
+    proc_macro_deps = all_crate_deps(proc_macro = True),
+    lib_crate_name = "tauri_with_vite_lib",
+    binary_crate_name = "tauri_with_vite",
+    crate_features = ["custom-protocol"],
+    acl_dep_env_targets = [
+        "@example_crates__tauri-2.10.3//:build_script_build",
+        "@example_crates__tauri-plugin-opener-2.5.3//:build_script_build",
+    ],
+    tauri_config = "tauri.conf.json",
+    main_binary_name = "tauri-with-vite",
+    icons = ["icons/icon.icns"],
+    capabilities = [":capabilities/default.json"],
+    bundle_id = "com.jeremyhale.tauri-with-vite",
+    product_name = "tauri-with-vite",
+    version = "0.1.0",
 )
 
 cargo_build_script(
@@ -92,23 +146,23 @@ cargo_build_script(
     data = [
         ":cargo_srcs",
         ":tauri_build_data",
-        ":tauri_with_vite_lib_release_context",
-        ":_tauri_with_vite_lib_release_context_acl_prep",
+        ":app_arm64_lib_release_context",
+        ":_app_arm64_lib_release_context_acl_prep",
         "//examples/tauri_with_vite:frontend_dist",
         "//examples/tauri_with_vite:embedded_assets_rust",
     ],
     compile_data = [
         ":cargo_srcs",
         ":tauri_build_data",
-        ":tauri_with_vite_lib_release_context",
-        ":_tauri_with_vite_lib_release_context_acl_prep",
+        ":app_arm64_lib_release_context",
+        ":_app_arm64_lib_release_context_acl_prep",
         "//examples/tauri_with_vite:frontend_dist",
         "//examples/tauri_with_vite:embedded_assets_rust",
     ],
     build_script_env = {
         "DEP_TAURI_DEV": "false",
-        "RULES_TAURI_BAZEL_ACL_OUT_DIR": "$(location :_tauri_with_vite_lib_release_context_acl_prep)",
-        "RULES_TAURI_BAZEL_FULL_CONTEXT": "$(location :tauri_with_vite_lib_release_context)",
+        "RULES_TAURI_BAZEL_ACL_OUT_DIR": "$(location :_app_arm64_lib_release_context_acl_prep)",
+        "RULES_TAURI_BAZEL_FULL_CONTEXT": "$(location :app_arm64_lib_release_context)",
     },
 )
 
@@ -117,4 +171,14 @@ rust_test(
     srcs = ["build_contract.rs"],
     crate_name = "tauri_with_vite_build_contract_test",
     edition = "2021",
+)
+
+alias(
+    name = "tauri_with_vite_lib",
+    actual = ":app_arm64_lib",
+)
+
+alias(
+    name = "tauri_with_vite_bin",
+    actual = ":app_arm64_bin",
 )

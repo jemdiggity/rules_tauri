@@ -2,6 +2,7 @@ load("//private:bundle_inputs.bzl", "tauri_bundle_inputs_impl")
 load("//private:macos_app.bzl", "tauri_macos_app_impl")
 load("//private:release_context.bzl", _tauri_release_context = "tauri_release_context", _tauri_release_rust_library_src = "tauri_release_rust_library_src")
 load("//private:sidecar.bzl", "tauri_sidecar_impl")
+load("//private:target_helpers.bzl", "tauri_single_file_target")
 load("@rules_rust//rust:defs.bzl", "rust_binary", "rust_library")
 
 tauri_bundle_inputs = rule(
@@ -86,6 +87,8 @@ def tauri_rust_app(
         deps,
         proc_macro_deps,
         binary_name = None,
+        binary_crate_name = None,
+        lib_crate_name = None,
         context_cargo_srcs = None,
         lib_src = "src/lib.rs",
         main_src = "src/main.rs",
@@ -95,6 +98,8 @@ def tauri_rust_app(
     release_context_name = name + "_release_context"
     release_lib_name = name + "_release_lib"
     binary_name = binary_name if binary_name else name + "_bin"
+    binary_crate_name = binary_crate_name if binary_crate_name else binary_name
+    lib_crate_name = lib_crate_name if lib_crate_name else name
 
     tauri_release_context(
         name = release_context_name,
@@ -115,7 +120,7 @@ def tauri_rust_app(
         name = name,
         srcs = [":" + release_lib_name],
         crate_root = release_lib_name + ".rs",
-        crate_name = name,
+        crate_name = lib_crate_name,
         edition = "2021",
         aliases = aliases,
         crate_features = crate_features,
@@ -129,10 +134,99 @@ def tauri_rust_app(
     rust_binary(
         name = binary_name,
         srcs = [main_src],
-        crate_name = binary_name,
+        crate_name = binary_crate_name,
         edition = "2021",
         crate_features = crate_features,
         deps = [":" + name],
+    )
+
+def tauri_application(
+        *,
+        name,
+        platform,
+        target_triple,
+        bundle_id,
+        product_name,
+        version = "",
+        version_file = None,
+        frontend_dist,
+        embedded_assets_rust,
+        tauri_config,
+        cargo_srcs,
+        tauri_build_data,
+        aliases,
+        deps,
+        proc_macro_deps,
+        main_binary_name = None,
+        icons = [],
+        capabilities = [],
+        sidecars = [],
+        resources = [],
+        resource_map = {},
+        resource_trees = {},
+        entitlements = None,
+        info_plist_fragments = [],
+        macos_files = {},
+        frameworks = [],
+        context_cargo_srcs = None,
+        lib_src = "src/lib.rs",
+        main_src = "src/main.rs",
+        binary_crate_name = None,
+        lib_crate_name = None,
+        crate_features = [],
+        acl_dep_env_targets = []):
+    rust_lib_name = name + "_lib"
+    rust_bin_name = name + "_bin"
+    transitioned_binary_name = name + "_main_binary"
+    bundle_inputs_name = name + "_bundle_inputs"
+
+    tauri_rust_app(
+        name = rust_lib_name,
+        binary_name = rust_bin_name,
+        cargo_srcs = cargo_srcs,
+        context_cargo_srcs = context_cargo_srcs,
+        tauri_build_data = tauri_build_data,
+        frontend_dist = frontend_dist,
+        embedded_assets_rust = embedded_assets_rust,
+        aliases = aliases,
+        deps = deps,
+        proc_macro_deps = proc_macro_deps,
+        binary_crate_name = binary_crate_name,
+        lib_crate_name = lib_crate_name,
+        lib_src = lib_src,
+        main_src = main_src,
+        crate_features = crate_features,
+        acl_dep_env_targets = acl_dep_env_targets,
+    )
+
+    tauri_single_file_target(
+        name = transitioned_binary_name,
+        platform = platform,
+        target = ":" + rust_bin_name,
+    )
+
+    tauri_app(
+        name = name,
+        bundle_inputs_name = bundle_inputs_name,
+        frontend_dist = frontend_dist,
+        main_binary = ":" + transitioned_binary_name,
+        main_binary_name = main_binary_name,
+        sidecars = sidecars,
+        resources = resources,
+        resource_map = resource_map,
+        resource_trees = resource_trees,
+        icons = icons,
+        tauri_config = tauri_config,
+        capabilities = capabilities,
+        entitlements = entitlements,
+        info_plist_fragments = info_plist_fragments,
+        macos_files = macos_files,
+        bundle_id = bundle_id,
+        product_name = product_name,
+        version = version,
+        version_file = version_file,
+        target_triple = target_triple,
+        frameworks = frameworks,
     )
 
 tauri_release_context = _tauri_release_context

@@ -1,35 +1,6 @@
 package(default_visibility = ["//visibility:public"])
 
-load("//tauri:defs.bzl", "tauri_app")
-load(":example_build.bzl", "exec_target", "single_file_target")
-
-platform(
-    name = "macos_arm64",
-    constraint_values = [
-        "@platforms//cpu:aarch64",
-        "@platforms//os:macos",
-    ],
-)
-
-platform(
-    name = "macos_x86_64",
-    constraint_values = [
-        "@platforms//cpu:x86_64",
-        "@platforms//os:macos",
-    ],
-)
-
-single_file_target(
-    name = "main_binary_arm64",
-    platform = ":macos_arm64",
-    target = "//examples/tauri_with_vite/app/src-tauri:tauri_with_vite_bin",
-)
-
-single_file_target(
-    name = "main_binary_x86_64",
-    platform = ":macos_x86_64",
-    target = "//examples/tauri_with_vite/app/src-tauri:tauri_with_vite_bin",
-)
+load(":example_build.bzl", "exec_target")
 
 exec_target(
     name = "frontend_dist",
@@ -48,42 +19,32 @@ genrule(
     cmd = "$(execpath //tools:tauri_embedded_assets_rust_exec) --transformer $(execpath //tools/tauri_brotli_compress:tauri_transform_assets_exec) --compressor $(execpath //tools/tauri_brotli_compress:tauri_brotli_compress_exec) --compression-quality 2 $(location :frontend_dist) $@",
 )
 
-tauri_app(
-    name = "app_arm64",
-    bundle_inputs_name = "bundle_inputs_arm64",
-    frontend_dist = ":frontend_dist",
-    main_binary = ":main_binary_arm64",
-    main_binary_name = "tauri-with-vite",
-    icons = ["src/icons/icon.icns"],
-    tauri_config = "src/tauri.conf.json",
-    capabilities = ["//examples/tauri_with_vite/app/src-tauri:capabilities/default.json"],
-    bundle_id = "com.jeremyhale.tauri-with-vite",
-    product_name = "tauri-with-vite",
-    version = "0.1.0",
-    target_triple = "aarch64-apple-darwin",
-)
-
-tauri_app(
-    name = "app_x86_64",
-    bundle_inputs_name = "bundle_inputs_x86_64",
-    frontend_dist = ":frontend_dist",
-    main_binary = ":main_binary_x86_64",
-    main_binary_name = "tauri-with-vite",
-    icons = ["src/icons/icon.icns"],
-    tauri_config = "src/tauri.conf.json",
-    capabilities = ["//examples/tauri_with_vite/app/src-tauri:capabilities/default.json"],
-    bundle_id = "com.jeremyhale.tauri-with-vite",
-    product_name = "tauri-with-vite",
-    version = "0.1.0",
-    target_triple = "x86_64-apple-darwin",
-)
-
 alias(
     name = "bundle_inputs",
-    actual = ":bundle_inputs_arm64",
+    actual = "//examples/tauri_with_vite/app/src-tauri:app_arm64_bundle_inputs",
 )
 
 alias(
     name = "app",
-    actual = ":app_arm64",
+    actual = "//examples/tauri_with_vite/app/src-tauri:app_arm64",
+)
+
+alias(
+    name = "app_arm64",
+    actual = "//examples/tauri_with_vite/app/src-tauri:app_arm64",
+)
+
+alias(
+    name = "app_x86_64",
+    actual = "//examples/tauri_with_vite/app/src-tauri:app_x86_64",
+)
+
+alias(
+    name = "bundle_inputs_arm64",
+    actual = "//examples/tauri_with_vite/app/src-tauri:app_arm64_bundle_inputs",
+)
+
+alias(
+    name = "bundle_inputs_x86_64",
+    actual = "//examples/tauri_with_vite/app/src-tauri:app_x86_64_bundle_inputs",
 )
