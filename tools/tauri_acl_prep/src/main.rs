@@ -365,14 +365,6 @@ fn copy_capabilities_dir(source: &Path, destination: &Path) -> Result<()> {
             copy_capabilities_dir(&source_path, &destination_path)?;
             continue;
         }
-        if source_path.extension().and_then(|value| value.to_str()) == Some("json") {
-            let content = fs::read_to_string(&source_path)
-                .with_context(|| format!("failed to read {}", source_path.display()))?;
-            let content = content.replace("\"opener:", "\"plugin-opener:");
-            fs::write(&destination_path, content)
-                .with_context(|| format!("failed to write {}", destination_path.display()))?;
-            continue;
-        }
         copy_file(&source_path, &destination_path)?;
     }
     Ok(())
@@ -427,10 +419,7 @@ fn permission_env_var(file_name: &str) -> Result<String> {
         ));
     }
 
-    if let Some(plugin) = file_name
-        .strip_prefix("tauri-")
-        .and_then(|value| value.strip_suffix("-permission-files"))
-    {
+    if let Some(plugin) = file_name.strip_suffix("-permission-files") {
         return Ok(format!(
             "DEP_{}_PERMISSION_FILES_PATH",
             plugin.replace('-', "_").to_ascii_uppercase()
@@ -503,5 +492,13 @@ mod tests {
             staged.join("Cargo.toml").is_file(),
             "expected staged Cargo.toml to exist"
         );
+    }
+
+    #[test]
+    fn permission_env_var_normalizes_plugin_names() {
+        let env_name = super::permission_env_var("tauri-plugin-opener-permission-files")
+            .expect("permission env var should be generated");
+
+        assert_eq!(env_name, "DEP_TAURI_PLUGIN_OPENER_PERMISSION_FILES_PATH");
     }
 }
