@@ -1,0 +1,29 @@
+{
+  "productName": "MinimalTauriApp",
+  "version": "1.2.3",
+  "identifier": "dev.rules_tauri.minimal",
+  "build": {
+    "frontendDist": "../src/frontend"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "MinimalTauriApp",
+        "width": 800,
+        "height": 600
+      }
+    ],
+    "security": {
+      "capabilities": ["default"]
+    }
+  },
+  "bundle": {
+    "active": true,
+    "icon": ["icons/icon.icns"],
+    "macOS": {
+      "bundleVersion": "42",
+      "minimumSystemVersion": "13.0"
+    }
+  }
+}

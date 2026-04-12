@@ -1,6 +1,10 @@
 # minimal_macos
 
-This example exercises a small but non-trivial `rules_tauri` graph:
+This example demonstrates the default `rules_tauri` consumer path: a standard
+`src-tauri` application built with `tauri_application()`, backed by a static
+hello-world `index.html`.
+
+It still exercises a small but non-trivial release graph:
 
 - frontend assets
 - main binary

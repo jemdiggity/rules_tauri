@@ -64,6 +64,15 @@ crate.from_cargo(
     ],
 )
 crate.from_cargo(
+    name = "minimal_example_crates",
+    cargo_lockfile = "//examples/minimal_macos/src-tauri:Cargo.lock",
+    manifests = ["//examples/minimal_macos/src-tauri:Cargo.toml"],
+    supported_platform_triples = [
+        "aarch64-apple-darwin",
+        "x86_64-apple-darwin",
+    ],
+)
+crate.from_cargo(
     name = "tool_crates",
     cargo_lockfile = "//tools/tauri_brotli_compress:Cargo.lock",
     manifests = ["//tools/tauri_brotli_compress:Cargo.toml"],
@@ -124,6 +133,15 @@ crate.annotation(
         "//tools:tauri-utils-bazel-debug-assertions.patch",
         "//tools:tauri-utils-bazel-permission-paths.patch",
     ],
+    repositories = ["minimal_example_crates"],
+)
+crate.annotation(
+    crate = "tauri-utils",
+    patch_args = ["-p1"],
+    patches = [
+        "//tools:tauri-utils-bazel-debug-assertions.patch",
+        "//tools:tauri-utils-bazel-permission-paths.patch",
+    ],
     repositories = ["acl_tool_crates"],
 )
 crate.annotation(
@@ -146,5 +164,7 @@ use_repo(
     "example_crates",
     "example_crates__tauri-2.10.3",
     "example_crates__tauri-plugin-opener-2.5.3",
+    "minimal_example_crates",
+    "minimal_example_crates__tauri-2.10.3",
     "tool_crates",
 )

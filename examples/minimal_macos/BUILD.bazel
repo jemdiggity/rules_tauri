@@ -1,10 +1,33 @@
 package(default_visibility = ["//visibility:public"])
 
-load("//tauri:defs.bzl", "tauri_app", "tauri_sidecar")
+load(":example_build.bzl", "copy_tree")
+load("//tauri:defs.bzl", "tauri_sidecar")
 
-filegroup(
+exports_files([
+    "src/Info.fragment.plist",
+    "src/frameworks/Fake.framework/Fake",
+    "src/icons/AppIcon.icns",
+    "src/resources/example.txt",
+    "src/resources/extra.conf",
+    "src/resources/license.txt",
+])
+
+copy_tree(
     name = "frontend_dist",
     srcs = glob(["src/frontend/**"]),
+    strip_prefix = "examples/minimal_macos/src/frontend/",
+)
+
+genrule(
+    name = "embedded_assets_rust",
+    srcs = [":frontend_dist"],
+    tools = [
+        "//tools/tauri_brotli_compress:tauri_brotli_compress_exec",
+        "//tools/tauri_brotli_compress:tauri_transform_assets_exec",
+        "//tools:tauri_embedded_assets_rust_exec",
+    ],
+    outs = ["embedded_assets_rust.rs"],
+    cmd = "$(execpath //tools:tauri_embedded_assets_rust_exec) --transformer $(execpath //tools/tauri_brotli_compress:tauri_transform_assets_exec) --compressor $(execpath //tools/tauri_brotli_compress:tauri_brotli_compress_exec) --compression-quality 2 $(location :frontend_dist) $@",
 )
 
 tauri_sidecar(
@@ -14,29 +37,6 @@ tauri_sidecar(
     target_triple = "aarch64-apple-darwin",
 )
 
-tauri_app(
-    name = "app_arm64",
-    bundle_inputs_name = "bundle_inputs_arm64",
-    frontend_dist = ":frontend_dist",
-    main_binary = "src/bin/minimal-app",
-    sidecars = [":helper_sidecar_arm64"],
-    resources = ["src/resources/example.txt"],
-    resource_map = {
-        "src/resources/license.txt": "legal/license.txt",
-    },
-    icons = ["src/icons/AppIcon.icns"],
-    tauri_config = "src/tauri.conf.json",
-    info_plist_fragments = ["src/Info.fragment.plist"],
-    macos_files = {
-        "src/resources/extra.conf": "Helpers/extra.conf",
-    },
-    bundle_id = "dev.rules_tauri.minimal",
-    product_name = "MinimalTauriApp",
-    version = "1.2.3",
-    target_triple = "aarch64-apple-darwin",
-    frameworks = ["src/frameworks/Fake.framework/Fake"],
-)
-
 tauri_sidecar(
     name = "helper_sidecar_x86_64",
     binary = "src/bin/helper-sidecar-x86_64-apple-darwin",
@@ -44,35 +44,32 @@ tauri_sidecar(
     target_triple = "x86_64-apple-darwin",
 )
 
-tauri_app(
-    name = "app_x86_64",
-    bundle_inputs_name = "bundle_inputs_x86_64",
-    frontend_dist = ":frontend_dist",
-    main_binary = "src/bin/minimal-app",
-    sidecars = [":helper_sidecar_x86_64"],
-    resources = ["src/resources/example.txt"],
-    resource_map = {
-        "src/resources/license.txt": "legal/license.txt",
-    },
-    icons = ["src/icons/AppIcon.icns"],
-    tauri_config = "src/tauri.conf.json",
-    info_plist_fragments = ["src/Info.fragment.plist"],
-    macos_files = {
-        "src/resources/extra.conf": "Helpers/extra.conf",
-    },
-    bundle_id = "dev.rules_tauri.minimal",
-    product_name = "MinimalTauriApp",
-    version = "1.2.3",
-    target_triple = "x86_64-apple-darwin",
-    frameworks = ["src/frameworks/Fake.framework/Fake"],
-)
-
 alias(
     name = "bundle_inputs",
-    actual = ":bundle_inputs_arm64",
+    actual = "//examples/minimal_macos/src-tauri:app_arm64_bundle_inputs",
 )
 
 alias(
     name = "app",
-    actual = ":app_arm64",
+    actual = "//examples/minimal_macos/src-tauri:app_arm64",
+)
+
+alias(
+    name = "bundle_inputs_arm64",
+    actual = "//examples/minimal_macos/src-tauri:app_arm64_bundle_inputs",
+)
+
+alias(
+    name = "bundle_inputs_x86_64",
+    actual = "//examples/minimal_macos/src-tauri:app_x86_64_bundle_inputs",
+)
+
+alias(
+    name = "app_arm64",
+    actual = "//examples/minimal_macos/src-tauri:app_arm64",
+)
+
+alias(
+    name = "app_x86_64",
+    actual = "//examples/minimal_macos/src-tauri:app_x86_64",
 )
