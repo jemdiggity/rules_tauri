@@ -58,7 +58,6 @@ filegroup(
         "tauri.conf.json",
         ":capabilities",
         ":icons",
-        "//examples/minimal_macos:frontend_dist",
     ],
 )
 

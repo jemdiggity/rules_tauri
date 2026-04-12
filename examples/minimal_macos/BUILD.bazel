@@ -1,6 +1,5 @@
 package(default_visibility = ["//visibility:public"])
 
-load(":example_build.bzl", "copy_tree")
 load("//tauri:defs.bzl", "tauri_sidecar")
 
 exports_files([
@@ -12,22 +11,16 @@ exports_files([
     "src/resources/license.txt",
 ])
 
-copy_tree(
+filegroup(
     name = "frontend_dist",
     srcs = glob(["src/frontend/**"]),
-    strip_prefix = "examples/minimal_macos/src/frontend/",
 )
 
 genrule(
     name = "embedded_assets_rust",
-    srcs = [":frontend_dist"],
-    tools = [
-        "//tools/tauri_brotli_compress:tauri_brotli_compress_exec",
-        "//tools/tauri_brotli_compress:tauri_transform_assets_exec",
-        "//tools:tauri_embedded_assets_rust_exec",
-    ],
+    srcs = ["//examples/minimal_macos/src-tauri:app_arm64_embedded_assets_rust.rs"],
     outs = ["embedded_assets_rust.rs"],
-    cmd = "$(execpath //tools:tauri_embedded_assets_rust_exec) --transformer $(execpath //tools/tauri_brotli_compress:tauri_transform_assets_exec) --compressor $(execpath //tools/tauri_brotli_compress:tauri_brotli_compress_exec) --compression-quality 2 $(location :frontend_dist) $@",
+    cmd = "cp $(location //examples/minimal_macos/src-tauri:app_arm64_embedded_assets_rust.rs) $@",
 )
 
 tauri_sidecar(

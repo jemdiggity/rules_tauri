@@ -146,16 +146,12 @@ cargo_build_script(
         ":tauri_build_data",
         ":app_arm64_lib_release_context",
         ":_app_arm64_lib_release_context_acl_prep",
-        "//examples/tauri_with_vite:frontend_dist",
-        "//examples/tauri_with_vite:embedded_assets_rust",
     ],
     compile_data = [
         ":cargo_srcs",
         ":tauri_build_data",
         ":app_arm64_lib_release_context",
         ":_app_arm64_lib_release_context_acl_prep",
-        "//examples/tauri_with_vite:frontend_dist",
-        "//examples/tauri_with_vite:embedded_assets_rust",
     ],
     build_script_env = {
         "DEP_TAURI_DEV": "false",
