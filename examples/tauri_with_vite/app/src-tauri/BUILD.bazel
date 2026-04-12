@@ -3,7 +3,7 @@ package(default_visibility = ["//visibility:public"])
 load("@example_crates//:defs.bzl", "aliases", "all_crate_deps")
 load("@rules_rust//cargo:defs.bzl", "cargo_build_script")
 load("@rules_rust//rust:defs.bzl", "rust_binary", "rust_library", "rust_test")
-load("//private:upstream_context_oracle.bzl", "tauri_upstream_context_oracle")
+load("//tauri:defs.bzl", "tauri_release_context", "tauri_release_rust_library_src")
 
 filegroup(
     name = "cargo_srcs",
@@ -52,23 +52,10 @@ filegroup(
     ],
 )
 
-tauri_upstream_context_oracle(
-    upstream_name = "upstream_build_script",
-    full_context_name = "full_context_rust",
+tauri_release_context(
+    name = "release_context",
     cargo_srcs = ":context_cargo_srcs",
     tauri_build_data = ":tauri_build_data",
-    build_script_src = "upstream_build.rs",
-    build_contract_src = "build_contract.rs",
-    pkg_name = "tauri-with-vite",
-    version = "0.1.0",
-    rundir = "examples/tauri_with_vite/app/src-tauri",
-    aliases = aliases(build = True),
-    build_deps = all_crate_deps(build = True),
-    build_proc_macro_deps = all_crate_deps(build_proc_macro = True),
-    link_deps = [
-        "@example_crates//:tauri",
-        "@example_crates//:tauri-plugin-opener",
-    ],
     frontend_dist = "//examples/tauri_with_vite:frontend_dist",
     embedded_assets_rust = "//examples/tauri_with_vite:embedded_assets_rust",
     acl_dep_env_targets = [
@@ -77,46 +64,10 @@ tauri_upstream_context_oracle(
     ],
 )
 
-genrule(
-    name = "tauri_with_vite_lib_rs",
-    srcs = [":full_context_rust_support"],
-    outs = ["lib_bazel.rs"],
-    cmd = """
-python3 - "$(location :full_context_rust_support)" "$@" <<'PY'
-import json
-import pathlib
-import re
-import sys
-
-support_dir = pathlib.Path(sys.argv[1])
-support_dir_literal = json.dumps(support_dir.name)
-out = pathlib.Path(sys.argv[2])
-context = (support_dir / "full_context_rust.rs").read_text(encoding="utf-8")
-context = re.sub(
-    r'::\\s*std\\s*::\\s*env\\s*!\\s*\\(\\s*"OUT_DIR"\\s*\\)',
-    support_dir_literal,
-    context,
-)
-out.write_text(
-    "// Bazel release builds consume the generated context directly.\\n"
-    "#[tauri::command]\\n"
-    "fn greet(name: &str) -> String {\\n"
-    "    format!(\\\"Hello, {}! You've been greeted from Rust!\\\", name)\\n"
-    "}\\n\\n"
-    "#[cfg_attr(mobile, tauri::mobile_entry_point)]\\n"
-    "pub fn run() {\\n"
-    "    tauri::Builder::default()\\n"
-    "        .plugin(tauri_plugin_opener::init())\\n"
-    "        .invoke_handler(tauri::generate_handler![greet])\\n"
-    "        .run(\\n"
-    + context
-    + "\\n        )\\n"
-    "        .expect(\\\"error while running tauri application\\\");\\n"
-    "}\\n",
-    encoding="utf-8",
-)
-PY
-""",
+tauri_release_rust_library_src(
+    name = "tauri_with_vite_release_lib",
+    src = "src/lib.rs",
+    release_context_support = ":release_context_support",
 )
 
 cargo_build_script(
@@ -141,36 +92,36 @@ cargo_build_script(
     data = [
         ":cargo_srcs",
         ":tauri_build_data",
-        ":full_context_rust",
-        ":_upstream_build_script_acl_prep",
+        ":release_context",
+        ":_release_context_acl_prep",
         "//examples/tauri_with_vite:frontend_dist",
         "//examples/tauri_with_vite:embedded_assets_rust",
     ],
     compile_data = [
         ":cargo_srcs",
         ":tauri_build_data",
-        ":full_context_rust",
-        ":_upstream_build_script_acl_prep",
+        ":release_context",
+        ":_release_context_acl_prep",
         "//examples/tauri_with_vite:frontend_dist",
         "//examples/tauri_with_vite:embedded_assets_rust",
     ],
     build_script_env = {
         "DEP_TAURI_DEV": "false",
-        "RULES_TAURI_BAZEL_ACL_OUT_DIR": "$(location :_upstream_build_script_acl_prep)",
-        "RULES_TAURI_BAZEL_FULL_CONTEXT": "$(location :full_context_rust)",
+        "RULES_TAURI_BAZEL_ACL_OUT_DIR": "$(location :_release_context_acl_prep)",
+        "RULES_TAURI_BAZEL_FULL_CONTEXT": "$(location :release_context)",
     },
 )
 
 rust_library(
     name = "tauri_with_vite_lib",
-    srcs = [":tauri_with_vite_lib_rs"],
-    crate_root = "lib_bazel.rs",
+    srcs = [":tauri_with_vite_release_lib"],
+    crate_root = "tauri_with_vite_release_lib.rs",
     crate_name = "tauri_with_vite_lib",
     edition = "2021",
     aliases = aliases(),
     crate_features = ["custom-protocol"],
     compile_data = [
-        ":full_context_rust_support",
+        ":release_context_support",
     ],
     deps = all_crate_deps(normal = True),
     proc_macro_deps = all_crate_deps(proc_macro = True),

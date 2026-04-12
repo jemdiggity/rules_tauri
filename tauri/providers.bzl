@@ -15,6 +15,15 @@ TauriBundleInfo = provider(
     },
 )
 
+TauriSidecarInfo = provider(
+    doc = "Typed Tauri sidecar input.",
+    fields = {
+        "file": "Staged sidecar file named with the target triple suffix.",
+        "sidecar_name": "Logical sidecar name before target suffixing.",
+        "target_triple": "Target triple for this sidecar.",
+    },
+)
+
 MacosAppBundleInfo = provider(
     doc = "Unsigned macOS app bundle output.",
     fields = {

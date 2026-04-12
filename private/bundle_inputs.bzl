@@ -1,7 +1,7 @@
 load("//private:manifest.bzl", "encode_manifest", "manifest_entry")
 load("//private:paths.bzl", "normalize_bundle_relative_path", "normalize_resource_relpath", "strip_target_triple_suffix")
 load("//private:plist.bzl", "default_plist_inputs")
-load("//tauri:providers.bzl", "TauriBundleInfo")
+load("//tauri:providers.bzl", "TauriBundleInfo", "TauriSidecarInfo")
 
 def _files_from_target(target):
     return target[DefaultInfo].files.to_list()
@@ -10,6 +10,15 @@ def _files_from_targets(targets):
     files = []
     for target in targets:
         files.extend(_files_from_target(target))
+    return files
+
+def _sidecar_files_from_targets(targets):
+    files = []
+    for target in targets:
+        if TauriSidecarInfo in target:
+            files.append(target[TauriSidecarInfo].file)
+        else:
+            files.extend(_files_from_target(target))
     return files
 
 def _single_file_from_target(target, attr_name):
@@ -55,7 +64,7 @@ def tauri_bundle_inputs_impl(ctx):
     spec_file = ctx.actions.declare_file(ctx.label.name + "_bundle_spec.json")
 
     frontend_files = _files_from_target(ctx.attr.frontend_dist) if ctx.attr.frontend_dist else []
-    sidecar_files = _files_from_targets(ctx.attr.sidecars)
+    sidecar_files = _sidecar_files_from_targets(ctx.attr.sidecars)
     resource_files = _files_from_targets(ctx.attr.resources)
     icon_files = _files_from_targets(ctx.attr.icons)
     capability_files = _files_from_targets(ctx.attr.capabilities)

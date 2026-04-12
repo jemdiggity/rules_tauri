@@ -2,7 +2,7 @@
 
 ## Scope
 
-`rules_tauri` owns Tauri-specific release assembly only. It stops at an unsigned macOS `.app`.
+`rules_tauri` owns Tauri-specific release semantics short of compilation. It stops at an unsigned macOS `.app`, but it may also expose Bazel-native release codegen and typed packaging helpers that consuming repos compose with their own compile rules.
 
 Do not expand the scope to code signing, DMG creation, notarization, or dev workflow support unless the change is explicitly intended to broaden the public contract.
 

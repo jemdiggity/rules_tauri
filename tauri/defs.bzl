@@ -1,5 +1,7 @@
 load("//private:bundle_inputs.bzl", "tauri_bundle_inputs_impl")
 load("//private:macos_app.bzl", "tauri_macos_app_impl")
+load("//private:release_context.bzl", _tauri_release_context = "tauri_release_context", _tauri_release_rust_library_src = "tauri_release_rust_library_src")
+load("//private:sidecar.bzl", "tauri_sidecar_impl")
 
 tauri_bundle_inputs = rule(
     implementation = tauri_bundle_inputs_impl,
@@ -46,3 +48,31 @@ tauri_macos_app = rule(
     },
     doc = "Assembles an unsigned macOS .app from TauriBundleInfo.",
 )
+
+tauri_sidecar = rule(
+    implementation = tauri_sidecar_impl,
+    attrs = {
+        "binary": attr.label(mandatory = True, allow_single_file = True),
+        "sidecar_name": attr.string(),
+        "target_triple": attr.string(mandatory = True),
+    },
+    doc = "Stages a built executable as a typed Tauri sidecar input.",
+)
+
+def tauri_app(
+        *,
+        name,
+        bundle_inputs_name = None,
+        **kwargs):
+    bundle_inputs_name = bundle_inputs_name if bundle_inputs_name else name + "_bundle_inputs"
+    tauri_bundle_inputs(
+        name = bundle_inputs_name,
+        **kwargs
+    )
+    tauri_macos_app(
+        name = name,
+        bundle = ":" + bundle_inputs_name,
+    )
+
+tauri_release_context = _tauri_release_context
+tauri_release_rust_library_src = _tauri_release_rust_library_src
