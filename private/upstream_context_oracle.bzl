@@ -1,4 +1,5 @@
 load("@rules_rust//cargo:defs.bzl", "cargo_build_script")
+load("//private:frontend_dist.bzl", "tauri_frontend_dist")
 
 def _single_output(target, attr_name):
     files = target[DefaultInfo].files.to_list()
@@ -17,6 +18,14 @@ def _target_files(targets):
     for target in targets:
         files.extend(target[DefaultInfo].files.to_list())
     return files
+
+def _normalize_frontend_dist(name, frontend_dist):
+    normalized_name = "_" + name + "_frontend_dist"
+    tauri_frontend_dist(
+        name = normalized_name,
+        frontend_dist = frontend_dist,
+    )
+    return ":" + normalized_name
 
 def _tauri_acl_prep_dir_impl(ctx):
     out = ctx.actions.declare_directory(ctx.label.name + ".out_dir")
@@ -175,12 +184,13 @@ def tauri_upstream_context_oracle(
     acl_prep_name = "_" + upstream_name + "_acl_prep"
     acl_compare_name = "_" + upstream_name + "_acl_prep_matches_oracle"
     support_name = full_context_name + "_support"
+    normalized_frontend_dist = _normalize_frontend_dist(upstream_name, frontend_dist)
 
     _tauri_acl_prep_dir(
         name = acl_prep_name,
         cargo_srcs = cargo_srcs,
         dep_env_targets = acl_dep_env_targets,
-        frontend_dist = frontend_dist,
+        frontend_dist = normalized_frontend_dist,
         tauri_build_data = tauri_build_data,
     )
 
@@ -204,16 +214,16 @@ def tauri_upstream_context_oracle(
             data = [
                 cargo_srcs,
                 tauri_build_data,
-                frontend_dist,
+                normalized_frontend_dist,
             ],
             compile_data = [
                 cargo_srcs,
                 tauri_build_data,
-                frontend_dist,
+                normalized_frontend_dist,
             ],
             build_script_env = {
                 "DEP_TAURI_DEV": "false",
-                "RULES_TAURI_FRONTEND_DIST": "$(location %s)" % frontend_dist,
+                "RULES_TAURI_FRONTEND_DIST": "$(location %s)" % normalized_frontend_dist,
             },
         )
 
