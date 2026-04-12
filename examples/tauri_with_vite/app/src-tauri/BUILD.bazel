@@ -2,8 +2,8 @@ package(default_visibility = ["//visibility:public"])
 
 load("@example_crates//:defs.bzl", "aliases", "all_crate_deps")
 load("@rules_rust//cargo:defs.bzl", "cargo_build_script")
-load("@rules_rust//rust:defs.bzl", "rust_binary", "rust_library", "rust_test")
-load("//tauri:defs.bzl", "tauri_release_context", "tauri_release_rust_library_src")
+load("@rules_rust//rust:defs.bzl", "rust_test")
+load("//tauri:defs.bzl", "tauri_rust_app")
 
 filegroup(
     name = "cargo_srcs",
@@ -52,22 +52,22 @@ filegroup(
     ],
 )
 
-tauri_release_context(
-    name = "release_context",
-    cargo_srcs = ":context_cargo_srcs",
+tauri_rust_app(
+    name = "tauri_with_vite_lib",
+    binary_name = "tauri_with_vite_bin",
+    cargo_srcs = ":cargo_srcs",
+    context_cargo_srcs = ":context_cargo_srcs",
     tauri_build_data = ":tauri_build_data",
     frontend_dist = "//examples/tauri_with_vite:frontend_dist",
     embedded_assets_rust = "//examples/tauri_with_vite:embedded_assets_rust",
+    aliases = aliases(),
+    deps = all_crate_deps(normal = True),
+    proc_macro_deps = all_crate_deps(proc_macro = True),
+    crate_features = ["custom-protocol"],
     acl_dep_env_targets = [
         "@example_crates__tauri-2.10.3//:build_script_build",
         "@example_crates__tauri-plugin-opener-2.5.3//:build_script_build",
     ],
-)
-
-tauri_release_rust_library_src(
-    name = "tauri_with_vite_release_lib",
-    src = "src/lib.rs",
-    release_context_support = ":release_context_support",
 )
 
 cargo_build_script(
@@ -92,48 +92,24 @@ cargo_build_script(
     data = [
         ":cargo_srcs",
         ":tauri_build_data",
-        ":release_context",
-        ":_release_context_acl_prep",
+        ":tauri_with_vite_lib_release_context",
+        ":_tauri_with_vite_lib_release_context_acl_prep",
         "//examples/tauri_with_vite:frontend_dist",
         "//examples/tauri_with_vite:embedded_assets_rust",
     ],
     compile_data = [
         ":cargo_srcs",
         ":tauri_build_data",
-        ":release_context",
-        ":_release_context_acl_prep",
+        ":tauri_with_vite_lib_release_context",
+        ":_tauri_with_vite_lib_release_context_acl_prep",
         "//examples/tauri_with_vite:frontend_dist",
         "//examples/tauri_with_vite:embedded_assets_rust",
     ],
     build_script_env = {
         "DEP_TAURI_DEV": "false",
-        "RULES_TAURI_BAZEL_ACL_OUT_DIR": "$(location :_release_context_acl_prep)",
-        "RULES_TAURI_BAZEL_FULL_CONTEXT": "$(location :release_context)",
+        "RULES_TAURI_BAZEL_ACL_OUT_DIR": "$(location :_tauri_with_vite_lib_release_context_acl_prep)",
+        "RULES_TAURI_BAZEL_FULL_CONTEXT": "$(location :tauri_with_vite_lib_release_context)",
     },
-)
-
-rust_library(
-    name = "tauri_with_vite_lib",
-    srcs = [":tauri_with_vite_release_lib"],
-    crate_root = "tauri_with_vite_release_lib.rs",
-    crate_name = "tauri_with_vite_lib",
-    edition = "2021",
-    aliases = aliases(),
-    crate_features = ["custom-protocol"],
-    compile_data = [
-        ":release_context_support",
-    ],
-    deps = all_crate_deps(normal = True),
-    proc_macro_deps = all_crate_deps(proc_macro = True),
-)
-
-rust_binary(
-    name = "tauri_with_vite_bin",
-    srcs = ["src/main.rs"],
-    crate_name = "tauri_with_vite",
-    edition = "2021",
-    crate_features = ["custom-protocol"],
-    deps = [":tauri_with_vite_lib"],
 )
 
 rust_test(

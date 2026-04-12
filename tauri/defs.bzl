@@ -2,6 +2,7 @@ load("//private:bundle_inputs.bzl", "tauri_bundle_inputs_impl")
 load("//private:macos_app.bzl", "tauri_macos_app_impl")
 load("//private:release_context.bzl", _tauri_release_context = "tauri_release_context", _tauri_release_rust_library_src = "tauri_release_rust_library_src")
 load("//private:sidecar.bzl", "tauri_sidecar_impl")
+load("@rules_rust//rust:defs.bzl", "rust_binary", "rust_library")
 
 tauri_bundle_inputs = rule(
     implementation = tauri_bundle_inputs_impl,
@@ -72,6 +73,66 @@ def tauri_app(
     tauri_macos_app(
         name = name,
         bundle = ":" + bundle_inputs_name,
+    )
+
+def tauri_rust_app(
+        *,
+        name,
+        cargo_srcs,
+        tauri_build_data,
+        frontend_dist,
+        embedded_assets_rust,
+        aliases,
+        deps,
+        proc_macro_deps,
+        binary_name = None,
+        context_cargo_srcs = None,
+        lib_src = "src/lib.rs",
+        main_src = "src/main.rs",
+        crate_features = [],
+        acl_dep_env_targets = []):
+    context_cargo_srcs = context_cargo_srcs if context_cargo_srcs else cargo_srcs
+    release_context_name = name + "_release_context"
+    release_lib_name = name + "_release_lib"
+    binary_name = binary_name if binary_name else name + "_bin"
+
+    tauri_release_context(
+        name = release_context_name,
+        cargo_srcs = context_cargo_srcs,
+        tauri_build_data = tauri_build_data,
+        frontend_dist = frontend_dist,
+        embedded_assets_rust = embedded_assets_rust,
+        acl_dep_env_targets = acl_dep_env_targets,
+    )
+
+    tauri_release_rust_library_src(
+        name = release_lib_name,
+        src = lib_src,
+        release_context_support = ":" + release_context_name + "_support",
+    )
+
+    rust_library(
+        name = name,
+        srcs = [":" + release_lib_name],
+        crate_root = release_lib_name + ".rs",
+        crate_name = name,
+        edition = "2021",
+        aliases = aliases,
+        crate_features = crate_features,
+        compile_data = [
+            ":" + release_context_name + "_support",
+        ],
+        deps = deps,
+        proc_macro_deps = proc_macro_deps,
+    )
+
+    rust_binary(
+        name = binary_name,
+        srcs = [main_src],
+        crate_name = binary_name,
+        edition = "2021",
+        crate_features = crate_features,
+        deps = [":" + name],
     )
 
 tauri_release_context = _tauri_release_context
