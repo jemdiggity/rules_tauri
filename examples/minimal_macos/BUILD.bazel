@@ -16,13 +16,6 @@ filegroup(
     srcs = glob(["src/frontend/**"]),
 )
 
-genrule(
-    name = "embedded_assets_rust",
-    srcs = ["//examples/minimal_macos/src-tauri:app_arm64_embedded_assets_rust.rs"],
-    outs = ["embedded_assets_rust.rs"],
-    cmd = "cp $(location //examples/minimal_macos/src-tauri:app_arm64_embedded_assets_rust.rs) $@",
-)
-
 tauri_sidecar(
     name = "helper_sidecar_arm64",
     binary = "src/bin/helper-sidecar-aarch64-apple-darwin",
