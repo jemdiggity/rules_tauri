@@ -108,6 +108,27 @@ tauri_upstream_context_oracle(
     ],
 )
 
+tauri_upstream_context_oracle(
+    upstream_name = "upstream_build_script_fileset",
+    full_context_name = "full_context_rust_fileset",
+    cargo_srcs = ":cargo_srcs",
+    tauri_build_data = ":tauri_build_data",
+    build_script_src = "upstream_build.rs",
+    build_contract_src = "build_contract.rs",
+    pkg_name = "tauri-codegen-fixture",
+    version = "0.1.0",
+    rundir = "test/fixtures/tauri_codegen/src-tauri",
+    aliases = aliases_oracle(build = True, package_name = ORACLE_PACKAGE_NAME),
+    build_deps = all_crate_deps_oracle(build = True, package_name = ORACLE_PACKAGE_NAME),
+    build_proc_macro_deps = all_crate_deps_oracle(build_proc_macro = True, package_name = ORACLE_PACKAGE_NAME),
+    link_deps = ["@codegen_oracle_crates//:tauri"],
+    frontend_dist = "//test/fixtures/tauri_codegen:dist_srcs",
+    embedded_assets_rust = "//test/fixtures/tauri_codegen:embedded_assets_compressed_rust",
+    acl_dep_env_targets = [
+        "@codegen_oracle_crates__tauri-2.10.3//:build_script_build",
+    ],
+)
+
 rust_library(
     name = "codegen_probe_lib",
     srcs = ["src/lib.rs"],

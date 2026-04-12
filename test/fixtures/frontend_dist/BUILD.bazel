@@ -1,0 +1,25 @@
+package(default_visibility = ["//visibility:public"])
+
+load("//private:frontend_dist.bzl", "tauri_frontend_dist")
+load("//test/fixtures/tauri_codegen:defs.bzl", "copy_tree")
+
+filegroup(
+    name = "asset_srcs",
+    srcs = glob(["assets/**"]),
+)
+
+copy_tree(
+    name = "dist",
+    srcs = [":asset_srcs"],
+    strip_prefix = "assets/",
+)
+
+tauri_frontend_dist(
+    name = "normalized_dir",
+    frontend_dist = ":dist",
+)
+
+tauri_frontend_dist(
+    name = "normalized_files",
+    frontend_dist = ":asset_srcs",
+)
