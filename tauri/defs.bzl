@@ -1,4 +1,5 @@
 load("//private:bundle_inputs.bzl", "tauri_bundle_inputs_impl")
+load("//private:frontend_dist.bzl", "tauri_frontend_dist")
 load("//private:macos_app.bzl", "tauri_macos_app_impl")
 load("//private:release_context.bzl", _tauri_release_context = "tauri_release_context", _tauri_release_rust_library_src = "tauri_release_rust_library_src")
 load("//private:sidecar.bzl", "tauri_sidecar_impl")
@@ -150,7 +151,7 @@ def tauri_application(
         version = "",
         version_file = None,
         frontend_dist,
-        embedded_assets_rust,
+        embedded_assets_rust = None,
         tauri_config,
         cargo_srcs,
         tauri_build_data,
@@ -179,6 +180,28 @@ def tauri_application(
     rust_bin_name = name + "_bin"
     transitioned_binary_name = name + "_main_binary"
     bundle_inputs_name = name + "_bundle_inputs"
+    normalized_frontend_dist_name = name + "_frontend_dist"
+    embedded_assets_rust_name = name + "_embedded_assets_rust"
+    embedded_assets_rust_target = embedded_assets_rust
+
+    tauri_frontend_dist(
+        name = normalized_frontend_dist_name,
+        frontend_dist = frontend_dist,
+    )
+
+    if embedded_assets_rust == None:
+        native.genrule(
+            name = embedded_assets_rust_name,
+            srcs = [":" + normalized_frontend_dist_name],
+            tools = [
+                "//tools/tauri_brotli_compress:tauri_brotli_compress_exec",
+                "//tools/tauri_brotli_compress:tauri_transform_assets_exec",
+                "//tools:tauri_embedded_assets_rust_exec",
+            ],
+            outs = [embedded_assets_rust_name + ".rs"],
+            cmd = "$(execpath //tools:tauri_embedded_assets_rust_exec) --transformer $(execpath //tools/tauri_brotli_compress:tauri_transform_assets_exec) --compressor $(execpath //tools/tauri_brotli_compress:tauri_brotli_compress_exec) --compression-quality 2 $(location :%s) $@" % normalized_frontend_dist_name,
+        )
+        embedded_assets_rust_target = ":" + embedded_assets_rust_name
 
     tauri_rust_app(
         name = rust_lib_name,
@@ -186,8 +209,8 @@ def tauri_application(
         cargo_srcs = cargo_srcs,
         context_cargo_srcs = context_cargo_srcs,
         tauri_build_data = tauri_build_data,
-        frontend_dist = frontend_dist,
-        embedded_assets_rust = embedded_assets_rust,
+        frontend_dist = ":" + normalized_frontend_dist_name,
+        embedded_assets_rust = embedded_assets_rust_target,
         aliases = aliases,
         deps = deps,
         proc_macro_deps = proc_macro_deps,
@@ -208,7 +231,7 @@ def tauri_application(
     tauri_app(
         name = name,
         bundle_inputs_name = bundle_inputs_name,
-        frontend_dist = frontend_dist,
+        frontend_dist = ":" + normalized_frontend_dist_name,
         main_binary = ":" + transitioned_binary_name,
         main_binary_name = main_binary_name,
         sidecars = sidecars,
