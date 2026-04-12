@@ -7,9 +7,9 @@ The example is intentionally split in two:
 - `app/` contains the vendored application source so the example matches a real generated project.
 - `src/` contains checked-in packaging inputs that are not generated during the example build: icon and Tauri config.
 
-The example now uses the high-level `tauri_application(...)` macro in `app/src-tauri/BUILD.bazel`. Bazel owns the release context generation, release-source rewriting, Rust release binary wiring, and unsigned macOS app assembly. The example still keeps `build.rs` for dev-oriented Cargo/Tauri CLI flows.
+The example now uses the high-level `tauri_application(...)` macro in `app/src-tauri/BUILD.bazel`. Bazel owns frontend normalization, embedded-assets generation by default when `embedded_assets_rust` is not supplied, release context generation, release-source rewriting, Rust release binary wiring, and unsigned macOS app assembly. The example still keeps `build.rs` for dev-oriented Cargo/Tauri CLI flows.
 
-For release assembly parity with normal Tauri builds, the frontend assets are expected to be embedded into the Tauri binary before `rules_tauri` bundles the app. They are not copied into `Contents/Resources/frontend/...` in the final `.app`. In this example path, Bazel owns that embedded-assets seam and the Tauri release context seam instead of relying on the local crate `build.rs` in the release graph.
+For release assembly parity with normal Tauri builds, the frontend assets are embedded into the Tauri binary before `rules_tauri` bundles the app. They are not copied into `Contents/Resources/frontend/...` in the final `.app`. In this example path, `tauri_application(...)` owns the frontend normalization and the default embedded-assets seam, while still allowing an explicit `embedded_assets_rust` override instead of relying on the local crate `build.rs` or a separately precomputed target in the release graph.
 
 Build with:
 

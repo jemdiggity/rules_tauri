@@ -4,6 +4,11 @@ This example demonstrates the default `rules_tauri` consumer path: a standard
 `src-tauri` application built with `tauri_application()`, backed by a static
 hello-world `index.html`.
 
+`tauri_application()` accepts `frontend_dist` as either a directory-producing
+target or a file set. In this high-level path, Bazel normalizes that frontend
+input and generates the embedded-assets Rust source internally by default when
+`embedded_assets_rust` is not supplied.
+
 It still exercises a small but non-trivial release graph:
 
 - frontend assets
