@@ -21,6 +21,18 @@ filegroup(
 )
 
 filegroup(
+    name = "context_cargo_srcs",
+    srcs = [
+        "Cargo.lock",
+        "Cargo.toml",
+        "tauri.conf.json",
+    ] + glob([
+        "capabilities/**",
+        "icons/**",
+    ]),
+)
+
+filegroup(
     name = "icons",
     srcs = glob(["icons/**"]),
 )
@@ -43,7 +55,7 @@ filegroup(
 tauri_upstream_context_oracle(
     upstream_name = "upstream_build_script",
     full_context_name = "full_context_rust",
-    cargo_srcs = ":cargo_srcs",
+    cargo_srcs = ":context_cargo_srcs",
     tauri_build_data = ":tauri_build_data",
     build_script_src = "upstream_build.rs",
     build_contract_src = "build_contract.rs",
@@ -63,6 +75,48 @@ tauri_upstream_context_oracle(
         "@example_crates__tauri-2.10.3//:build_script_build",
         "@example_crates__tauri-plugin-opener-2.5.3//:build_script_build",
     ],
+)
+
+genrule(
+    name = "tauri_with_vite_lib_rs",
+    srcs = [":full_context_rust_support"],
+    outs = ["lib_bazel.rs"],
+    cmd = """
+python3 - "$(location :full_context_rust_support)" "$@" <<'PY'
+import json
+import pathlib
+import re
+import sys
+
+support_dir = pathlib.Path(sys.argv[1])
+support_dir_literal = json.dumps(support_dir.name)
+out = pathlib.Path(sys.argv[2])
+context = (support_dir / "full_context_rust.rs").read_text(encoding="utf-8")
+context = re.sub(
+    r'::\\s*std\\s*::\\s*env\\s*!\\s*\\(\\s*"OUT_DIR"\\s*\\)',
+    support_dir_literal,
+    context,
+)
+out.write_text(
+    "// Bazel release builds consume the generated context directly.\\n"
+    "#[tauri::command]\\n"
+    "fn greet(name: &str) -> String {\\n"
+    "    format!(\\\"Hello, {}! You've been greeted from Rust!\\\", name)\\n"
+    "}\\n\\n"
+    "#[cfg_attr(mobile, tauri::mobile_entry_point)]\\n"
+    "pub fn run() {\\n"
+    "    tauri::Builder::default()\\n"
+    "        .plugin(tauri_plugin_opener::init())\\n"
+    "        .invoke_handler(tauri::generate_handler![greet])\\n"
+    "        .run(\\n"
+    + context
+    + "\\n        )\\n"
+    "        .expect(\\\"error while running tauri application\\\");\\n"
+    "}\\n",
+    encoding="utf-8",
+)
+PY
+""",
 )
 
 cargo_build_script(
@@ -109,17 +163,16 @@ cargo_build_script(
 
 rust_library(
     name = "tauri_with_vite_lib",
-    srcs = ["src/lib.rs"],
+    srcs = [":tauri_with_vite_lib_rs"],
+    crate_root = "lib_bazel.rs",
     crate_name = "tauri_with_vite_lib",
     edition = "2021",
     aliases = aliases(),
     crate_features = ["custom-protocol"],
     compile_data = [
-        ":cargo_srcs",
-        ":tauri_build_data",
-        "//examples/tauri_with_vite:frontend_dist",
+        ":full_context_rust_support",
     ],
-    deps = all_crate_deps(normal = True) + [":build_script"],
+    deps = all_crate_deps(normal = True),
     proc_macro_deps = all_crate_deps(proc_macro = True),
 )
 
