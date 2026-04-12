@@ -14,7 +14,7 @@ Its scope is:
 - assemble a deterministic unsigned macOS `.app` bundle for one target triple,
 - stop at the `.app` boundary.
 
-For normal release apps, use `tauri_application(...)`. Its `frontend_dist` input can be either a directory-producing target or a file set, and the macro normalizes that input and generates the embedded-assets Rust source internally by default when `embedded_assets_rust` is not supplied.
+For normal release apps, use `tauri_application(...)`. Its `frontend_dist` input can be either a directory-producing target or a file set, and the macro normalizes that input and generates the embedded-assets Rust source internally.
 
 Everything after `.app` creation, including code signing, DMG creation, notarization, stapling, and release upload, is out of scope.
 
@@ -58,7 +58,7 @@ Preferred entrypoints:
 
 - `tauri_application`
   - standard-layout Tauri Rust app
-  - Bazel owns frontend normalization, release context/codegen, and app bundle assembly, and generates embedded assets by default when no override is supplied
+  - Bazel owns frontend normalization, embedded-assets generation, release context/codegen, and app bundle assembly
 - `tauri_app`
   - you already have a release binary and want app bundle assembly only
 

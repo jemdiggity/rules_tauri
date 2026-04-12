@@ -1,0 +1,25 @@
+{
+  "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
+  "productName": "fixture",
+  "version": "0.1.0",
+  "identifier": "dev.rules_tauri.fixture",
+  "build": {
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "fixture",
+        "width": 800,
+        "height": 600
+      }
+    ]
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "macOS": {
+      "minimumSystemVersion": "13.0"
+    }
+  }
+}

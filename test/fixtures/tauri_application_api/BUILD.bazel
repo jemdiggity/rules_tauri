@@ -1,0 +1,41 @@
+package(default_visibility = ["//visibility:public"])
+
+load("//tauri:defs.bzl", "tauri_application")
+
+filegroup(
+    name = "frontend_dist",
+    srcs = ["index.html"],
+)
+
+filegroup(
+    name = "cargo_srcs",
+    srcs = [
+        "Cargo.lock",
+        "Cargo.toml",
+        "src/lib.rs",
+        "src/main.rs",
+        "tauri.conf.json",
+    ],
+)
+
+filegroup(
+    name = "tauri_build_data",
+    srcs = ["tauri.conf.json"],
+)
+
+tauri_application(
+    name = "bad_app",
+    platform = "//examples/minimal_macos/src-tauri:macos_arm64",
+    target_triple = "aarch64-apple-darwin",
+    bundle_id = "dev.rules_tauri.bad",
+    product_name = "bad",
+    version = "0.1.0",
+    frontend_dist = ":frontend_dist",
+    embedded_assets_rust = ":frontend_dist",
+    tauri_config = "tauri.conf.json",
+    cargo_srcs = ":cargo_srcs",
+    tauri_build_data = ":tauri_build_data",
+    aliases = {},
+    deps = [],
+    proc_macro_deps = [],
+)

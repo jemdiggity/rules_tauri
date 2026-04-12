@@ -6,8 +6,7 @@ hello-world `index.html`.
 
 `tauri_application()` accepts `frontend_dist` as either a directory-producing
 target or a file set. In this high-level path, Bazel normalizes that frontend
-input and generates the embedded-assets Rust source internally by default when
-`embedded_assets_rust` is not supplied.
+input and generates the embedded-assets Rust source internally.
 
 It still exercises a small but non-trivial release graph:
 
