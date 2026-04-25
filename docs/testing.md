@@ -33,6 +33,12 @@ The focused `rules_rust`/Tauri codegen probe is:
 ./test/validate_rules_rust_codegen_fixture.sh
 ```
 
+The bundle collision regression is:
+
+```sh
+./test/validate_bundle_destination_collisions.sh
+```
+
 The embedded-assets seam comparisons are:
 
 ```sh

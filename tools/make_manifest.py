@@ -22,9 +22,18 @@ def main() -> int:
     output_dir.mkdir(parents=True, exist_ok=True)
 
     manifest_entries = []
+    seen_destinations = {}
     for entry in spec["entries"]:
         source = Path(entry["source"])
         destination = output_dir / entry["destination"]
+        destination_key = entry["destination"]
+        if destination_key in seen_destinations:
+            previous = seen_destinations[destination_key]
+            raise SystemExit(
+                "duplicate manifest destination "
+                f"{destination_key!r} from {entry['source']} and {previous['source']}"
+            )
+        seen_destinations[destination_key] = entry
         ensure_parent(destination)
         shutil.copy2(source, destination)
         manifest_entries.append(

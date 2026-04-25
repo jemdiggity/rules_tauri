@@ -1,4 +1,5 @@
 load("//private:frontend_dist.bzl", "tauri_frontend_dist")
+load("//tauri:providers.bzl", "TauriReleaseContextInfo")
 
 def _single_output(target, attr_name):
     files = target[DefaultInfo].files.to_list()
@@ -96,7 +97,13 @@ def _tauri_context_support_dir_impl(ctx):
         progress_message = "Generating Tauri context support dir for %s" % ctx.label.name,
     )
 
-    return [DefaultInfo(files = depset([out]))]
+    return [
+        DefaultInfo(files = depset([out])),
+        TauriReleaseContextInfo(
+            support_dir = out,
+            acl_out_dir = ctx.attr.acl_out_dir,
+        ),
+    ]
 
 _tauri_context_support_dir = rule(
     implementation = _tauri_context_support_dir_impl,
