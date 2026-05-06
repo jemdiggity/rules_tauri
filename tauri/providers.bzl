@@ -36,3 +36,11 @@ MacosAppBundleInfo = provider(
         "manifest": "Bundle manifest file.",
     },
 )
+
+TauriReleaseContextInfo = provider(
+    doc = "Typed outputs for Bazel-owned Tauri release-context generation.",
+    fields = {
+        "support_dir": "Directory containing generated release-context support files.",
+        "acl_out_dir": "Directory containing generated ACL-prep outputs.",
+    },
+)

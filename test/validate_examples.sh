@@ -18,8 +18,8 @@ bazel build --action_env=PATH \
 
 arm64_app="$repo_root/bazel-bin/examples/minimal_macos/src-tauri/app_arm64.app"
 x86_app="$repo_root/bazel-bin/examples/minimal_macos/src-tauri/app_x86_64.app"
-vite_arm64_app="$repo_root/bazel-bin/examples/tauri_with_vite/app_arm64.app"
-vite_x86_app="$repo_root/bazel-bin/examples/tauri_with_vite/app_x86_64.app"
+vite_arm64_app="$repo_root/bazel-bin/examples/tauri_with_vite/app/src-tauri/app_arm64.app"
+vite_x86_app="$repo_root/bazel-bin/examples/tauri_with_vite/app/src-tauri/app_x86_64.app"
 minimal_embedded_assets="$repo_root/bazel-bin/examples/minimal_macos/src-tauri/app_arm64_embedded_assets_rust.rs"
 
 grep -q '(\"/index.html\", ' "$minimal_embedded_assets"
