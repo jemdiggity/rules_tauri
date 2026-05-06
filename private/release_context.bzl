@@ -101,7 +101,7 @@ def _tauri_context_support_dir_impl(ctx):
         DefaultInfo(files = depset([out])),
         TauriReleaseContextInfo(
             support_dir = out,
-            acl_out_dir = ctx.attr.acl_out_dir,
+            acl_out_dir = acl_out_dir,
         ),
     ]
 
